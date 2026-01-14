@@ -1,0 +1,53 @@
+# Bicep
+*.bicep.json
+
+# Azure
+*.parameters.json
+*.deploymentParameters.json
+
+# User-specific files
+*.user
+*.suo
+*.user.json
+
+# Build results
+[Dd]ebug/
+[Rr]elease/
+x64/
+x86/
+build/
+bld/
+[Bb]in/
+[Oo]bj/
+
+# Visual Studio Code
+.vscode/
+*.code-workspace
+
+# Rider
+.idea/
+
+# macOS
+.DS_Store
+
+# Windows
+Thumbs.db
+Desktop.ini
+
+# Logs
+*.log
+
+# Environment files
+.env
+.env.local
+*.env
+
+# Secrets (never commit these!)
+*secret*
+*password*
+*apikey*
+*credentials*
+
+# Test files
+test-*.bicep
+*.test.bicep
