@@ -86,7 +86,7 @@ Before deploying these analytics rules, ensure you have:
 ### 1. Clone the Repository
 
 ```bash
-git clone https://github.com/yourusername/azure-sentinel-analytics-rules.git
+git clone https://github.com/ContosoState/azure-sentinel-analytics-rules.git
 cd azure-sentinel-analytics-rules
 ```
 
@@ -494,8 +494,8 @@ Contributions are welcome! Please:
 
 ## Support and Feedback
 
-- **Issues**: Report bugs or request features via [GitHub Issues](https://github.com/yourusername/azure-sentinel-analytics-rules/issues)
-- **Discussions**: Ask questions in [GitHub Discussions](https://github.com/yourusername/azure-sentinel-analytics-rules/discussions)
+- **Issues**: Report bugs or request features via [GitHub Issues](https://github.com/ContosoState/azure-sentinel-analytics-rules/issues)
+- **Discussions**: Ask questions in [GitHub Discussions](https://github.com/ContosoState/azure-sentinel-analytics-rules/discussions)
 
 ## License
 
