@@ -17,6 +17,7 @@ A comprehensive collection of Microsoft Sentinel analytics rules designed to det
 - [Deployment](#deployment)
 - [Customization](#customization)
 - [Rule Details](#rule-details)
+- [Advanced Hunting Queries](#advanced-hunting-queries)
 - [MITRE ATT&CK Coverage](#mitre-attck-coverage)
 - [Contributing](#contributing)
 - [License](#license)
@@ -403,6 +404,20 @@ IP 192.0.2.100 made 42 failed authentication attempts against 3 apps.
 Suspicious Sign-In Activity: BackupApp had 45 sign-ins
 Service principal BackupApp performed 45 sign-ins. This may indicate credential abuse.
 ```
+
+---
+
+## Advanced Hunting Queries
+
+Want to proactively hunt for these attack patterns? Check out [ADVANCED-HUNTING-QUERIES.md](ADVANCED-HUNTING-QUERIES.md) for:
+
+- **7 Interactive KQL Queries** - One for each attack type with adjustable parameters
+- **Bonus Hunting Queries** - Geo-impossible travel, privilege account monitoring, anomalous app access
+- **Investigation Playbooks** - Step-by-step guidance for each threat
+- **Baseline Comparisons** - Detect deviations from normal behavior
+- **Drill-Down Queries** - Deep dive into specific incidents
+
+All queries work in both **Microsoft Sentinel** and **Microsoft 365 Defender Advanced Hunting**.
 
 ---
 
