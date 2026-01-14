@@ -15,7 +15,7 @@ Get up and running with Microsoft Sentinel Analytics Rules in 5 minutes.
 ### Step 1: Clone Repository (30 seconds)
 
 ```bash
-git clone https://github.com/ContosoState/azure-sentinel-analytics-rules.git
+git clone https://github.com/Contoso-State/azure-sentinel-analytics-rules.git
 cd azure-sentinel-analytics-rules
 ```
 
@@ -134,7 +134,7 @@ SigninLogs
 
 - 📚 [Full Documentation](README.md)
 - 🚀 [Deployment Guide](docs/deployment-guide.md)
-- 🐛 [Report Issues](https://github.com/ContosoState/azure-sentinel-analytics-rules/issues)
+- 🐛 [Report Issues](https://github.com/Contoso-State/azure-sentinel-analytics-rules/issues)
 
 ---
 
