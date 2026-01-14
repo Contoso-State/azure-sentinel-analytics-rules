@@ -44,9 +44,10 @@ Desktop.ini
 
 # Secrets (never commit these!)
 *secret*
-*password*
 *apikey*
 *credentials*
+
+# Note: password-spray.bicepparam is a legitimate parameter file, not a secret
 
 # Test files
 test-*.bicep
