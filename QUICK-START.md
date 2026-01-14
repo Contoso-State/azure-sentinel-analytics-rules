@@ -128,12 +128,14 @@ SigninLogs
 2. ⏰ Wait 1 hour for data
 3. 📊 Check Incidents in Sentinel
 4. 🎯 Tune thresholds based on your environment
-5. 📖 Read full [README](README.md) for details
+5. 🔍 Try [Advanced Hunting Queries](ADVANCED-HUNTING-QUERIES.md) for proactive threat hunting
+6. 📖 Read full [README](README.md) for details
 
 ## Support
 
 - 📚 [Full Documentation](README.md)
 - 🚀 [Deployment Guide](docs/deployment-guide.md)
+- 🔍 [Advanced Hunting Queries](ADVANCED-HUNTING-QUERIES.md)
 - 🐛 [Report Issues](https://github.com/Contoso-State/azure-sentinel-analytics-rules/issues)
 
 ---
