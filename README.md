@@ -24,9 +24,11 @@ A comprehensive collection of Microsoft Sentinel analytics rules designed to det
 
 ## Overview
 
-This repository contains **7 production-ready Sentinel analytics rules** implemented as Infrastructure-as-Code using Azure Bicep. Each rule is designed to detect specific attack patterns targeting Azure AD/Entra ID identities, including:
+This repository contains **9 production-ready Sentinel analytics rules** and a **companion workbook** implemented as Infrastructure-as-Code using Azure Bicep. Each rule is designed to detect specific attack patterns targeting Azure AD/Entra ID identities, including:
 
 - User account attacks (brute force, password spray, credential compromise)
+- **MFA hijacking via AiTM phishing** (token theft + account takeover)
+- **Over-permissioned app registration abuse** (email exfiltration, tenant enumeration)
 - Service principal abuse and credential theft
 - Reconnaissance and enumeration activities
 - Cross-tenant attacks and lateral movement
@@ -69,6 +71,8 @@ Before deploying these analytics rules, ensure you have:
 | SigninLogs | Azure AD Premium P1 or P2 |
 | AuditLogs | Azure AD Free (basic) or Premium |
 | AADServicePrincipalSignInLogs | Azure AD Premium P1 or P2 |
+| OfficeActivity | Office 365 E1/E3/E5 (Exchange audit logging) |
+| MicrosoftGraphActivityLogs | Microsoft Graph activity logging (preview) |
 
 ## Analytics Rules
 
@@ -81,6 +85,8 @@ Before deploying these analytics rules, ensure you have:
 | [Cross-Tenant Activity](#5-cross-tenant-service-principal-activity) | Service principal cross-tenant access | T1550 | High | 1 hour |
 | [SP Failed Auth](#6-failed-service-principal-authentications) | Failed SP authentication attempts | T1110 | Medium | 1 hour |
 | [SP Sign-In Activity](#7-suspicious-service-principal-sign-in-activity) | Excessive SP sign-in volume | T1078 | Medium | 1 hour |
+| [MFA Token Theft](#8-mfa-token-theft--aitm-phishing) | MFA reset + password reset correlation, multi-IP token replay | T1557, T1528, T1556 | High | 5 min |
+| [Over-Permissioned App](#9-over-permissioned-app-registration-abuse) | 3+ sensitive permissions, mass email send, SP bulk API calls | T1098, T1114, T1566 | High | 1 hour |
 
 ## Quick Start
 
@@ -407,11 +413,72 @@ Service principal BackupApp performed 45 sign-ins. This may indicate credential 
 
 ---
 
+### 8. MFA Token Theft — AiTM Phishing
+
+**File:** `rules/mfa-token-theft.bicep`
+
+Detects Adversary-in-the-Middle (AiTM) phishing attacks that steal session tokens after MFA completion. Two correlated detections:
+
+- **Detection A:** MFA method change + password reset on the same account within a configurable window (default: 30 minutes). This is the signature of full account takeover — the attacker resets MFA to lock out the real user, then changes the password.
+- **Detection B:** Sign-ins from multiple IPs for the same user within a short window (default: 15 minutes). Indicates stolen session token being replayed from attacker infrastructure.
+
+**Default thresholds:**
+- MFA + password correlation window: 30 minutes
+- Token replay window: 15 minutes
+- Minimum distinct IPs: 2
+
+**Why it matters:** Traditional MFA does not prevent AiTM attacks. The attacker doesn't bypass MFA — they capture the session after MFA completion. This rule detects the post-compromise behavior (MFA manipulation + password reset) that follows token theft.
+
+**MITRE ATT&CK:** T1557.003 (AiTM), T1528 (Steal Application Access Token), T1556.006 (Modify Authentication Process: MFA)
+
+---
+
+### 9. Over-Permissioned App Registration Abuse
+
+**File:** `rules/overpermissioned-app.bicep`
+
+Detects abuse of over-permissioned app registrations — a common post-compromise technique where attackers discover and exploit apps with excessive Graph API permissions. Three correlated detections:
+
+- **Detection A:** App registration with 3+ sensitive permissions (Mail.Send, User.Read.All, Files.ReadWrite.All, etc.) — fires on the permission grants themselves, looking back 7 days.
+- **Detection B:** Sudden spike in email sends from a user account — indicates Mail.Send abuse from application context (the app sends as a user, but at machine speed).
+- **Detection C:** Service principal bulk API activity — indicates automated user enumeration or data exfiltration via User.Read.All or similar permissions.
+
+**Default thresholds:**
+- Sensitive permission threshold: 3
+- Email send threshold: 5 emails in 15 minutes
+- SP API call threshold: 5 calls
+
+**Why it matters:** Over-permissioned app registrations are the #1 identity attack surface in education and SMB environments. A single app with Mail.Send + User.Read.All gives an attacker tenant-wide email and directory access — without needing admin credentials.
+
+**MITRE ATT&CK:** T1098.003 (Account Manipulation), T1114.002 (Remote Email Collection), T1566.002 (Spearphishing Link)
+
+---
+
+## Workbook: MFA Hijacking Detection
+
+A companion Sentinel workbook is available in `workbooks/mfa-hijack-detection.json` that provides visual dashboards for investigating MFA hijacking and app abuse attacks.
+
+**Tabs:**
+- **Overview** — KPI tiles, MFA/password activity trends, alert summary
+- **MFA Changes** — Timeline, per-user breakdown, operation types
+- **Password Resets** — Timeline, per-user breakdown, detail log
+- **Attack Timeline** — Correlated MFA+password events, sign-in IP analysis, audit trail
+- **App Registration Abuse** — Permission grants, Graph API call activity, email sends
+
+**Deploy:**
+```bash
+az deployment group create \
+  --resource-group <your-resource-group> \
+  --template-file workbooks/mfa-hijack-detection.json
+```
+
+---
+
 ## Advanced Hunting Queries
 
 Want to proactively hunt for these attack patterns? Check out [ADVANCED-HUNTING-QUERIES.md](ADVANCED-HUNTING-QUERIES.md) for:
 
-- **7 Interactive KQL Queries** - One for each attack type with adjustable parameters
+- **9 Interactive KQL Queries** - One for each attack type with adjustable parameters
 - **Bonus Hunting Queries** - Geo-impossible travel, privilege account monitoring, anomalous app access
 - **Investigation Playbooks** - Step-by-step guidance for each threat
 - **Baseline Comparisons** - Detect deviations from normal behavior
