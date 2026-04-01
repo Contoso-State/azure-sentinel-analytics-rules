@@ -24,14 +24,24 @@ A comprehensive collection of Microsoft Sentinel analytics rules designed to det
 
 ## Overview
 
-This repository contains **9 production-ready Sentinel analytics rules** and a **companion workbook** implemented as Infrastructure-as-Code using Azure Bicep. Each rule is designed to detect specific attack patterns targeting Azure AD/Entra ID identities, including:
+This repository contains **13 production-ready Sentinel analytics rules** and **2 companion workbooks** implemented as Infrastructure-as-Code using Azure Bicep. Rules are organized into scenario packages for easy deployment:
 
 - User account attacks (brute force, password spray, credential compromise)
 - **MFA hijacking via AiTM phishing** (token theft + account takeover)
 - **Over-permissioned app registration abuse** (email exfiltration, tenant enumeration)
+- **Shadow AI detection** (browser, desktop apps, user session attribution, AI agent activity)
 - Service principal abuse and credential theft
 - Reconnaissance and enumeration activities
 - Cross-tenant attacks and lateral movement
+
+## Scenario Packages
+
+| Scenario | Rules | Workbook | Description |
+|----------|-------|----------|-------------|
+| [Shadow AI](scenarios/shadow-ai/) | 4 rules | Shadow AI Usage Monitor | Detect unauthorized AI app usage across browser, desktop, and API channels |
+| [MFA Hijack](scenarios/mfa-hijack/) | 2 rules | MFA Hijacking Detection | Detect AiTM phishing, account takeover, and over-permissioned app abuse |
+
+Each scenario folder contains `rules/`, `parameters/`, `queries/` (standalone KQL for copy-paste), `workbooks/`, and a README.
 
 All rules include:
 - ✅ Configurable detection thresholds
@@ -87,6 +97,10 @@ Before deploying these analytics rules, ensure you have:
 | [SP Sign-In Activity](#7-suspicious-service-principal-sign-in-activity) | Excessive SP sign-in volume | T1078 | Medium | 1 hour |
 | [MFA Token Theft](#8-mfa-token-theft--aitm-phishing) | MFA reset + password reset correlation, multi-IP token replay | T1557, T1528, T1556 | High | 5 min |
 | [Over-Permissioned App](#9-over-permissioned-app-registration-abuse) | 3+ sensitive permissions, mass email send, SP bulk API calls | T1098, T1114, T1566 | High | 1 hour |
+| [Shadow AI Browser](scenarios/shadow-ai/) | Browser connections to AI domains (ChatGPT, Claude, Gemini, etc.) | T1567 | Medium | 15 min |
+| [Shadow AI Desktop](scenarios/shadow-ai/) | Desktop AI apps (ChatGPT.exe, Claude.exe) with data volume metrics | T1219, T1567 | High | 15 min |
+| [AI Agent Activity](scenarios/shadow-ai/) | High-volume ARM + Graph + Entra operations from automation tools | T1059, T1565 | Informational | 1 hour |
+| [Shadow AI Session](scenarios/shadow-ai/) | AI usage with user session attribution via DeviceInfo join | T1567 | Medium | 15 min |
 
 ## Quick Start
 
