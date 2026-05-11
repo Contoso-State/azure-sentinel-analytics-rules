@@ -1,6 +1,0 @@
-AzureActivity
-| where TimeGenerated > ago(24h)
-| where ResourceProviderValue =~ "MICROSOFT.COGNITIVESERVICES"
-| project TimeGenerated, OperationNameValue, ActivityStatusValue, Caller, ResourceGroup, ResourceId
-| order by TimeGenerated desc
-| take 100

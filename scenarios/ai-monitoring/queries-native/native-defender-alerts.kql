@@ -1,7 +1,0 @@
-SecurityAlert
-| where TimeGenerated > ago(24h)
-| where ProductName has_any ("Azure AI", "Defender for AI", "Microsoft Defender for Cloud")
-   or AlertName has_any ("prompt", "LLM", "jailbreak", "foundry", "openai", "AI", "model")
-| project TimeGenerated, AlertName, AlertSeverity, ProductName, Description=substring(Description, 0, 400)
-| order by TimeGenerated desc
-| take 100
