@@ -67,7 +67,11 @@ KPI_TILE_SETTINGS = {
     "titleContent": {"columnMatch": "Metric", "formatter": 1},
     "leftContent": {
         "columnMatch": "Value",
-        "formatter": 1,
+        "formatter": 12,
+        "formatOptions": {
+            "min": 0,
+            "palette": "blue",
+        },
         "numberFormat": {
             "unit": 0,
             "options": {
@@ -89,53 +93,32 @@ Q_EXEC_KPI = """
 let m = AzureMetrics
 | where TimeGenerated {TimeRange}
 | where ResourceProvider == "MICROSOFT.COGNITIVESERVICES";
-let kpi_requests = m
-| where MetricName == "ModelRequests"
-| summarize v=toint(sum(todouble(coalesce(Total, 0.0))))
-| project Metric="Total Requests", Value=v;
-let kpi_tokens = m
-| where MetricName == "TotalTokens"
-| summarize v=toint(sum(todouble(coalesce(Total, 0.0))))
-| project Metric="Total Tokens", Value=v;
-let kpi_input = m
-| where MetricName == "InputTokens"
-| summarize v=toint(sum(todouble(coalesce(Total, 0.0))))
-| project Metric="Input Tokens", Value=v;
-let kpi_output = m
-| where MetricName == "OutputTokens"
-| summarize v=toint(sum(todouble(coalesce(Total, 0.0))))
-| project Metric="Output Tokens", Value=v;
-let kpi_blocked = m
-| where MetricName == "BlockedCalls"
-| summarize v=toint(sum(todouble(coalesce(Total, 0.0))))
-| project Metric="Blocked Calls", Value=v;
+let kpi_metric = (n:string, mn:string) {
+    m | where MetricName == mn
+    | summarize v=tolong(sum(todouble(coalesce(Total, 0.0))))
+    | project Metric=n, Value=tolong(v)
+};
 let ops = AzureDiagnostics
 | where TimeGenerated {TimeRange}
 | where ResourceProvider == "MICROSOFT.COGNITIVESERVICES"
 | where Category == "RequestResponse"
-| extend StatusCode = toint(ResultSignature)
-| summarize
-    Throttles429 = countif(StatusCode == 429),
-    Errors4xx = countif(StatusCode between (400 .. 499) and StatusCode != 429),
-    Server5xx = countif(StatusCode >= 500);
-let kpi_429 = ops | project Metric="429 Throttles", Value=Throttles429;
-let kpi_4xx = ops | project Metric="4xx Client Errors", Value=Errors4xx;
-let kpi_5xx = ops | project Metric="5xx Errors", Value=Server5xx;
+| extend StatusCode = toint(ResultSignature);
 let kpi_alerts = SecurityAlert
 | where TimeGenerated {TimeRange}
 | where ProductName has_any ("Azure AI", "Defender for AI", "Microsoft Defender for Cloud")
     or AlertName has_any ("prompt", "LLM", "jailbreak", "foundry", "openai", "AI")
-| summarize v=count()
-| project Metric="Defender Alerts", Value=v;
-kpi_requests
-| union kpi_tokens
-| union kpi_input
-| union kpi_output
-| union kpi_blocked
-| union kpi_429
-| union kpi_4xx
-| union kpi_5xx
+| summarize v=tolong(count())
+| project Metric="Defender Alerts", Value=tolong(v);
+kpi_metric("Total Requests", "ModelRequests")
+| union (kpi_metric("Total Tokens", "TotalTokens"))
+| union (kpi_metric("Input Tokens", "InputTokens"))
+| union (kpi_metric("Output Tokens", "OutputTokens"))
+| union (kpi_metric("Blocked Calls", "BlockedCalls"))
+| union (ops | summarize v=tolong(countif(StatusCode == 429)) | project Metric="429 Throttles", Value=tolong(v))
+| union (ops | summarize v=tolong(countif(StatusCode between (400 .. 499) and StatusCode != 429)) | project Metric="4xx Client Errors", Value=tolong(v))
+| union (ops | summarize v=tolong(countif(StatusCode >= 500)) | project Metric="5xx Errors", Value=tolong(v))
 | union kpi_alerts
+| project Metric, Value=tolong(Value)
 """.strip()
 
 Q_USAGE_REQUEST_TREND = """
@@ -508,7 +491,7 @@ tab_executive = group(
             "exec-hdr",
             "### Executive\nNative AI posture summary from Foundry diagnostics + Defender for AI.",
         ),
-        tile("exec-kpi", Q_EXEC_KPI, "Executive KPIs", "tiles", size=4, tile_settings=KPI_TILE_SETTINGS),
+        tile("exec-kpi", Q_EXEC_KPI, "Executive KPIs", "tiles", size=4, tile_settings=KPI_TILE_SETTINGS, export_field="Metric", export_param="SelectedKPI"),
         tile("exec-requests", Q_USAGE_REQUEST_TREND, "Requests Trend by Model", "timechart", width="50"),
         tile("exec-safety", Q_SAFETY_TREND, "Safety Trend (Blocked/Harmful/Abusive)", "timechart", width="50"),
         tile("exec-health", Q_INGEST_HEALTH, "Telemetry Ingestion Health (last 24h)", "table"),
