@@ -1,0 +1,9 @@
+AzureDiagnostics
+| where TimeGenerated {TimeRange}
+| where ResourceProvider == "MICROSOFT.COGNITIVESERVICES"
+| where Category == "RequestResponse"
+| extend p = parse_json(properties_s)
+| extend ModelDeployment = coalesce(tostring(p.modelDeploymentName), tostring(p.modelName), "unknown")
+| where ModelDeployment != "" and ModelDeployment != "unknown"
+| summarize Requests = count() by bin(TimeGenerated, 15m), ModelDeployment
+| order by TimeGenerated asc

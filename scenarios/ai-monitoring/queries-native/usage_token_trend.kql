@@ -1,0 +1,10 @@
+AzureMetrics
+| where TimeGenerated {TimeRange}
+| where ResourceProvider == "MICROSOFT.COGNITIVESERVICES"
+| where MetricName in ("InputTokens", "OutputTokens", "TotalTokens")
+| summarize
+    InputTokens  = sumif(todouble(coalesce(Total, 0.0)), MetricName == "InputTokens"),
+    OutputTokens = sumif(todouble(coalesce(Total, 0.0)), MetricName == "OutputTokens"),
+    TotalTokens  = sumif(todouble(coalesce(Total, 0.0)), MetricName == "TotalTokens")
+    by bin(TimeGenerated, 1h), Resource
+| order by TimeGenerated asc

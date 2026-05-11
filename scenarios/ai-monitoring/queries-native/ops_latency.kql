@@ -1,0 +1,15 @@
+// Per-model latency from RequestResponse durations (AzureMetrics latency has no model dim here)
+AzureDiagnostics
+| where TimeGenerated {TimeRange}
+| where ResourceProvider == "MICROSOFT.COGNITIVESERVICES"
+| where Category == "RequestResponse"
+| extend p = parse_json(properties_s)
+| extend ModelDeployment = tostring(p.modelDeploymentName)
+| where ModelDeployment != ""
+| where "{ModelFilter}" == "*" or ModelDeployment =~ "{ModelFilter}"
+| summarize
+    AvgMs = avg(todouble(DurationMs)),
+    P50Ms = percentile(todouble(DurationMs), 50),
+    P95Ms = percentile(todouble(DurationMs), 95)
+    by bin(TimeGenerated, 15m), ModelDeployment
+| order by TimeGenerated asc

@@ -1,0 +1,100 @@
+// Rule: High-Volume AI Agent API Activity
+// Description: Correlates Azure Activity (ARM), Microsoft Graph API, and Entra ID
+//              audit operations to detect high-volume programmatic AI agent activity.
+// MITRE ATT&CK: T1059 (Command and Scripting Interpreter), T1565 (Data Manipulation)
+// Severity: Informational | Frequency: PT1H | Period: PT1H
+
+let timeWindow = 1h;
+let writeThreshold = 10;
+let AgentUserAgents = dynamic([
+    "AZURECLI",
+    "python-requests",
+    "python-httpx",
+    "curl",
+    "PowerShell"
+]);
+let excludedUsers = dynamic([]);
+let ARMOperations =
+    AzureActivity
+    | where TimeGenerated > ago(timeWindow)
+    | where CategoryValue == "Administrative"
+    | where ActivityStatusValue in ("Success", "Failure", "Start")
+    | where isnotempty(Caller)
+    | where Caller !in~ (excludedUsers)
+    | extend
+        OperationType = case(
+            OperationNameValue contains "WRITE", "Write",
+            OperationNameValue contains "DELETE", "Delete",
+            OperationNameValue contains "ACTION", "Action",
+            "Other"
+        ),
+        ResourceProvider = tostring(split(OperationNameValue, "/")[0])
+    | summarize
+        ARMOperationCount = count(),
+        ARMWriteCount = countif(OperationType == "Write"),
+        ARMDeleteCount = countif(OperationType == "Delete"),
+        ARMFailureCount = countif(ActivityStatusValue == "Failure"),
+        DistinctOperations = make_set(OperationNameValue, 50),
+        ResourceProviders = make_set(ResourceProvider, 20),
+        FirstOperation = min(TimeGenerated),
+        LastOperation = max(TimeGenerated)
+      by Caller, CallerIpAddress;
+let GraphOperations =
+    MicrosoftGraphActivityLogs
+    | where TimeGenerated > ago(timeWindow)
+    | extend IsAgentUA = iff(UserAgent has_any (AgentUserAgents), true, false)
+    | summarize
+        GraphCallCount = count(),
+        GraphWriteCount = countif(RequestMethod in ("POST", "PUT", "PATCH", "DELETE")),
+        GraphFailCount = countif(ResponseStatusCode >= 400),
+        GraphAgentCalls = countif(IsAgentUA),
+        UserAgents = make_set(UserAgent, 20),
+        RequestMethods = make_set(RequestMethod, 10),
+        FirstGraphCall = min(TimeGenerated),
+        LastGraphCall = max(TimeGenerated)
+      by IPAddress;
+let EntraChanges =
+    AuditLogs
+    | where TimeGenerated > ago(timeWindow)
+    | where Result == "success"
+    | where OperationName has_any (
+        "Update user", "Reset user password", "Enable account",
+        "Disable account", "Add member to role", "Remove member from role",
+        "Add service principal credentials", "Update service principal",
+        "Add app role assignment to service principal",
+        "Consent to application", "Add application",
+        "Update application", "Add service principal"
+    )
+    | extend ActorUPN = tostring(InitiatedBy.user.userPrincipalName)
+    | extend ActorIP = tostring(InitiatedBy.user.ipAddress)
+    | where ActorUPN !in~ (excludedUsers)
+    | summarize
+        EntraChangeCount = count(),
+        EntraOperations = make_set(OperationName, 20),
+        TargetUsers = make_set(tostring(TargetResources[0].userPrincipalName), 20),
+        FirstChange = min(TimeGenerated),
+        LastChange = max(TimeGenerated)
+      by ActorUPN, ActorIP;
+ARMOperations
+| join kind=leftouter (GraphOperations) on $left.CallerIpAddress == $right.IPAddress
+| join kind=leftouter (EntraChanges) on $left.Caller == $right.ActorUPN
+| extend
+    TotalOperations = ARMOperationCount + coalesce(GraphCallCount, 0) + coalesce(EntraChangeCount, 0),
+    TotalWrites = ARMWriteCount + coalesce(GraphWriteCount, 0) + coalesce(EntraChangeCount, 0)
+| where TotalWrites >= writeThreshold
+| project
+    AccountName = Caller,
+    IPAddress = CallerIpAddress,
+    TotalOperations,
+    TotalWrites,
+    ARMWriteCount,
+    GraphWriteCount = coalesce(GraphWriteCount, 0),
+    EntraChangeCount = coalesce(EntraChangeCount, 0),
+    EntraOperations,
+    TargetUsers,
+    ResourceProviders,
+    UserAgents,
+    DistinctOperations,
+    FirstOperation,
+    LastOperation
+| order by TotalOperations desc

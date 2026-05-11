@@ -1,0 +1,18 @@
+// Per-model safety/error counts derived from RequestResponse HTTP status codes
+AzureDiagnostics
+| where TimeGenerated {TimeRange}
+| where ResourceProvider == "MICROSOFT.COGNITIVESERVICES"
+| where Category == "RequestResponse"
+| extend p = parse_json(properties_s)
+| extend ModelDeployment = tostring(p.modelDeploymentName)
+| extend StatusCode      = toint(ResultSignature)
+| where ModelDeployment != ""
+| summarize
+    Success = countif(StatusCode between (200 .. 299)),
+    ContentFilter400 = countif(StatusCode == 400),
+    Auth401_403 = countif(StatusCode in (401, 403)),
+    Throttles429 = countif(StatusCode == 429),
+    Server5xx = countif(StatusCode >= 500),
+    Total = count()
+    by ModelDeployment
+| order by Total desc

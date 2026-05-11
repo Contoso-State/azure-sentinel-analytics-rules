@@ -15,7 +15,7 @@ Output: csu_native_llm_monitoring_workbook.json
 import json
 
 
-def tile(name, query, title, viz, size=0, width=None, chart_settings=None, tile_settings=None):
+def tile(name, query, title, viz, size=0, width=None, chart_settings=None, tile_settings=None, export_field=None, export_param=None):
     item = {
         "type": 3,
         "content": {
@@ -35,6 +35,10 @@ def tile(name, query, title, viz, size=0, width=None, chart_settings=None, tile_
         item["content"]["chartSettings"] = chart_settings
     if tile_settings:
         item["content"]["tileSettings"] = tile_settings
+    if export_field and export_param:
+        item["content"]["exportFieldName"] = export_field
+        item["content"]["exportParameterName"] = export_param
+        item["content"]["exportDefaultValue"] = "*"
     return item
 
 
@@ -63,8 +67,15 @@ KPI_TILE_SETTINGS = {
     "titleContent": {"columnMatch": "Metric", "formatter": 1},
     "leftContent": {
         "columnMatch": "Value",
-        "formatter": 12,
-        "formatOptions": {"palette": "auto"},
+        "formatter": 1,
+        "numberFormat": {
+            "unit": 0,
+            "options": {
+                "style": "decimal",
+                "useGrouping": True,
+                "maximumFractionDigits": 0,
+            },
+        },
     },
     "showBorder": True,
 }
@@ -259,6 +270,7 @@ AzureDiagnostics
 | extend p = parse_json(properties_s)
 | extend ModelDeployment = tostring(p.modelDeploymentName)
 | where ModelDeployment != ""
+| where "{ModelFilter}" == "*" or ModelDeployment =~ "{ModelFilter}"
 | summarize
     AvgMs = avg(todouble(DurationMs)),
     P50Ms = percentile(todouble(DurationMs), 50),
@@ -275,6 +287,7 @@ AzureDiagnostics
 | extend p = parse_json(properties_s)
 | extend ModelDeployment = coalesce(tostring(p.modelDeploymentName), Resource)
 | extend StatusCode = toint(ResultSignature)
+| where "{ModelFilter}" == "*" or ModelDeployment =~ "{ModelFilter}"
 | summarize
     Throttles429 = countif(StatusCode == 429),
     Client4xx = countif(StatusCode between (400 .. 499) and StatusCode != 429),
@@ -294,6 +307,7 @@ AzureDiagnostics
 | extend StreamType      = tostring(p.streamType)
 | extend StatusCode      = toint(ResultSignature)
 | where StatusCode >= 400
+| where "{ModelFilter}" == "*" or ModelDeployment =~ "{ModelFilter}"
 | project TimeGenerated, Resource, ModelDeployment, ModelName, StreamType, StatusCode, DurationMs, CorrelationId
 | order by TimeGenerated desc
 | take 250
@@ -311,6 +325,7 @@ AzureDiagnostics
 | extend StreamType      = tostring(p.streamType)
 | extend StatusCode      = toint(ResultSignature)
 | where StatusCode < 400
+| where "{ModelFilter}" == "*" or ModelDeployment =~ "{ModelFilter}"
 | project TimeGenerated, Resource, ModelDeployment, ModelName, StreamType, StatusCode, DurationMs, CorrelationId
 | order by TimeGenerated desc
 | take 100
@@ -327,24 +342,25 @@ SecurityAlert
 """.strip()
 
 Q_AUDIT_FEED = """
-// Resource-level admin/control-plane events from Activity Log
-// (AzureDiagnostics 'Audit' category is data-plane and may not be enabled on every account)
+// Cognitive Services admin/write events from Activity Log.
+// Forced 30d window: governance events are sparse and TimeRange (e.g. 24h) often returns nothing.
 AzureActivity
-| where TimeGenerated {TimeRange}
+| where TimeGenerated > ago(30d)
 | where ResourceProviderValue =~ "MICROSOFT.COGNITIVESERVICES"
-| where OperationNameValue has_any ("DEPLOYMENTS", "ACCOUNTS", "WRITE", "DELETE", "ACTION")
+| where OperationNameValue has_any ("WRITE", "DELETE", "ACTION")
 | project TimeGenerated, OperationNameValue, ActivityStatusValue, Caller, ResourceGroup, _ResourceId
 | order by TimeGenerated desc
-| take 100
+| take 200
 """.strip()
 
 Q_ACTIVITY_FEED = """
+// All Cognitive Services activity (read+write) — 30d window.
 AzureActivity
-| where TimeGenerated {TimeRange}
+| where TimeGenerated > ago(30d)
 | where ResourceProviderValue =~ "MICROSOFT.COGNITIVESERVICES"
 | project TimeGenerated, OperationNameValue, ActivityStatusValue, Caller, ResourceGroup, ResourceId
 | order by TimeGenerated desc
-| take 100
+| take 200
 """.strip()
 
 Q_INGEST_HEALTH = """
@@ -420,6 +436,19 @@ params_panel = {
                 "isRequired": False,
                 "value": "executive",
                 "isHiddenWhenLocked": True,
+            },
+            {
+                "id": "n1000000-0000-0000-0000-00000000n3",
+                "version": "KqlParameterItem/1.0",
+                "name": "ModelFilter",
+                "label": "Model filter (click a row in Model Split to drill)",
+                "type": 2,
+                "isRequired": False,
+                "value": "*",
+                "typeSettings": {"additionalResourceOptions": []},
+                "query": "AzureDiagnostics\n| where TimeGenerated > ago(7d)\n| where ResourceProvider == \"MICROSOFT.COGNITIVESERVICES\"\n| where Category == \"RequestResponse\"\n| extend p = parse_json(properties_s)\n| extend ModelDeployment = tostring(p.modelDeploymentName)\n| where ModelDeployment != \"\"\n| summarize by ModelDeployment\n| project Value=ModelDeployment, Label=ModelDeployment\n| union (print Value=\"*\", Label=\"All models\")\n| order by Label asc",
+                "queryType": 0,
+                "resourceType": "microsoft.operationalinsights/workspaces",
             },
         ],
     },
@@ -498,7 +527,7 @@ tab_usage = group(
         tile("usage-req", Q_USAGE_REQUEST_TREND, "Requests by Model (15m)", "timechart"),
         tile("usage-token", Q_USAGE_TOKEN_TREND, "Prompt/Output/Total Tokens (1h)", "table"),
         tile("usage-cost", Q_USAGE_COST, "Estimated Cost by Model (daily)", "table", width="50"),
-        tile("usage-model", Q_USAGE_MODEL_SPLIT, "Model Split — Requests vs Tokens", "table", width="50"),
+        tile("usage-model", Q_USAGE_MODEL_SPLIT, "Model Split \u2014 Requests vs Tokens (click a row to drill)", "table", width="50", export_field="ModelDeployment", export_param="ModelFilter"),
     ],
 )
 
