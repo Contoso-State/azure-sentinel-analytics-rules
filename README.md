@@ -40,6 +40,7 @@ This repository contains **13 production-ready Sentinel analytics rules** and **
 |----------|-------|----------|-------------|
 | [Shadow AI](scenarios/shadow-ai/) | 4 rules | Shadow AI Usage Monitor | Detect unauthorized AI app usage across browser, desktop, and API channels |
 | [MFA Hijack](scenarios/mfa-hijack/) | 2 rules | MFA Hijacking Detection | Detect AiTM phishing, account takeover, and over-permissioned app abuse |
+| [Azure Monitor AI Monitoring](scenarios/azure-monitor-ai-monitoring/) | — | Azure Monitor: AI Monitoring | Customer-deployable workbook for Azure AI Foundry / Azure OpenAI usage, cost, safety and Defender for AI alerts. No custom tables required. |
 
 Each scenario folder contains `rules/`, `parameters/`, `queries/` (standalone KQL for copy-paste), `workbooks/`, and a README.
 

@@ -1,0 +1,14 @@
+AzureDiagnostics
+| where TimeGenerated {TimeRange}
+| where ResourceProvider == "MICROSOFT.COGNITIVESERVICES"
+| where Category == "RequestResponse"
+| extend p = parse_json(properties_s)
+| extend ModelDeployment = coalesce(tostring(p.modelDeploymentName), Resource)
+| extend ModelName       = tostring(p.modelName)
+| extend StreamType      = tostring(p.streamType)
+| extend StatusCode      = toint(ResultSignature)
+| where StatusCode >= 400
+| where "{ModelFilter}" == "*" or ModelDeployment =~ "{ModelFilter}"
+| project TimeGenerated, Resource, ModelDeployment, ModelName, StreamType, StatusCode, DurationMs, CorrelationId
+| order by TimeGenerated desc
+| take 250

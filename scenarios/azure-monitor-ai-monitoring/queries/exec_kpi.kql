@@ -1,0 +1,29 @@
+let m = AzureMetrics
+| where TimeGenerated {TimeRange}
+| where ResourceProvider == "MICROSOFT.COGNITIVESERVICES";
+let kpi_metric = (n:string, mn:string) {
+    m | where MetricName == mn
+    | summarize v=tolong(sum(todouble(coalesce(Total, 0.0))))
+    | project Metric=n, Value=tolong(v)
+};
+let ops = AzureDiagnostics
+| where TimeGenerated {TimeRange}
+| where ResourceProvider == "MICROSOFT.COGNITIVESERVICES"
+| where Category == "RequestResponse"
+| extend StatusCode = toint(ResultSignature);
+let kpi_alerts = SecurityAlert
+| where TimeGenerated {TimeRange}
+| where ProductName has_any ("Azure AI", "Defender for AI", "Microsoft Defender for Cloud")
+    or AlertName has_any ("prompt", "LLM", "jailbreak", "foundry", "openai", "AI")
+| summarize v=tolong(count())
+| project Metric="Defender Alerts", Value=tolong(v);
+kpi_metric("Total Requests", "ModelRequests")
+| union (kpi_metric("Total Tokens", "TotalTokens"))
+| union (kpi_metric("Input Tokens", "InputTokens"))
+| union (kpi_metric("Output Tokens", "OutputTokens"))
+| union (kpi_metric("Blocked Calls", "BlockedCalls"))
+| union (ops | summarize v=tolong(countif(StatusCode == 429)) | project Metric="429 Throttles", Value=tolong(v))
+| union (ops | summarize v=tolong(countif(StatusCode between (400 .. 499) and StatusCode != 429)) | project Metric="4xx Client Errors", Value=tolong(v))
+| union (ops | summarize v=tolong(countif(StatusCode >= 500)) | project Metric="5xx Errors", Value=tolong(v))
+| union kpi_alerts
+| project Metric, Value=tolong(Value)

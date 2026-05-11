@@ -1,0 +1,18 @@
+AzureDiagnostics
+| where TimeGenerated {TimeRange}
+| where ResourceProvider == "MICROSOFT.COGNITIVESERVICES"
+| where Category == "RequestResponse"
+| extend p = parse_json(properties_s)
+| extend ModelDeployment = tostring(p.modelDeploymentName)
+| extend ModelName       = tostring(p.modelName)
+| extend ModelVersion    = tostring(p.modelVersion)
+| extend StreamType      = tostring(p.streamType)
+| extend StatusCode      = toint(ResultSignature)
+| where ModelDeployment != ""
+| summarize
+    Requests = count(),
+    AvgDurationMs = avg(todouble(DurationMs)),
+    Errors = countif(StatusCode >= 400),
+    Throttles = countif(StatusCode == 429)
+    by ModelDeployment, ModelName, ModelVersion, StreamType
+| order by Requests desc

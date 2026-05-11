@@ -1,0 +1,9 @@
+// Cognitive Services admin/write events from Activity Log.
+// Forced 30d window: governance events are sparse and TimeRange (e.g. 24h) often returns nothing.
+AzureActivity
+| where TimeGenerated > ago(30d)
+| where ResourceProviderValue =~ "MICROSOFT.COGNITIVESERVICES"
+| where OperationNameValue has_any ("WRITE", "DELETE", "ACTION")
+| project TimeGenerated, OperationNameValue, ActivityStatusValue, Caller, ResourceGroup, _ResourceId
+| order by TimeGenerated desc
+| take 200

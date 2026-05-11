@@ -1,0 +1,7 @@
+// All Cognitive Services activity (read+write) — 30d window.
+AzureActivity
+| where TimeGenerated > ago(30d)
+| where ResourceProviderValue =~ "MICROSOFT.COGNITIVESERVICES"
+| project TimeGenerated, OperationNameValue, ActivityStatusValue, Caller, ResourceGroup, ResourceId
+| order by TimeGenerated desc
+| take 200
