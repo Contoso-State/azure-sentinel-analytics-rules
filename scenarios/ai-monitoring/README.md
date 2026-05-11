@@ -53,6 +53,67 @@ Primary table expected by workbook queries:
    - Data Collection Rule (DCR), for example `dcr-pyrit-interactions`
 3. Sender/application that posts interaction telemetry (for example, PyRIT sidecar/logger).
 
+### How To Set Up `PyRITInteractions_CL`
+
+Use this sequence to create the ingestion path and verify data lands in the workspace.
+
+1. Create (or identify) a Log Analytics workspace connected to Sentinel.
+2. Create a Data Collection Endpoint (DCE) in the same region as the workspace.
+3. Create a Data Collection Rule (DCR) with:
+   - A stream declaration for your PyRIT interaction payload shape.
+   - A destination pointing to the target Log Analytics workspace.
+   - A transformation that outputs records into `PyRITInteractions_CL`.
+4. Grant the sender identity permission to ingest via the DCR.
+5. Configure your PyRIT logger to post JSON records to the Logs Ingestion API using the DCE endpoint and DCR immutable ID.
+6. Send a small test batch (1-5 records).
+7. Validate ingestion in Sentinel Logs with:
+
+```kusto
+PyRITInteractions_CL
+| where TimeGenerated > ago(30m)
+| order by TimeGenerated desc
+| take 20
+```
+
+Example Azure CLI scaffolding (adapt names/IDs for your environment):
+
+```bash
+# Variables
+RG=<your-rg>
+LOC=<region>
+WS=<your-law-workspace-name>
+DCE=dce-pyrit-interactions
+DCR=dcr-pyrit-interactions
+
+# 1) Create DCE
+az monitor data-collection endpoint create \
+  --name "$DCE" \
+  --resource-group "$RG" \
+  --location "$LOC"
+
+# 2) Get workspace resource ID
+WS_ID=$(az monitor log-analytics workspace show \
+  --resource-group "$RG" \
+  --workspace-name "$WS" \
+  --query id -o tsv)
+
+# 3) Create DCR from a local JSON definition that includes:
+#    - streamDeclarations
+#    - destinations.logAnalytics
+#    - dataFlows with outputStream = Custom-PyRITInteractions_CL
+az monitor data-collection rule create \
+  --name "$DCR" \
+  --resource-group "$RG" \
+  --location "$LOC" \
+  --rule-file dcr-pyrit-interactions.json
+```
+
+Important notes:
+
+- Column names in custom table ingestion are case-sensitive and must match the DCR stream declaration exactly.
+- Custom table ingestion can take a few minutes before records become queryable.
+- If data does not appear, first verify DCR immutable ID, DCE endpoint URI, auth token scope, and payload field names.
+
 Minimum columns required by the workbook/KQL:
 
 - `TimeGenerated`
