@@ -1,4 +1,18 @@
-// Time-series detail driven by the SelectedKPI parameter (clicked row in Executive KPIs grid).
+// =============================================================================
+// KPI Detail (drill-through)
+// =============================================================================
+// File:    kpi_detail.kql
+// Purpose: Time-series detail that follows the KPI row a user clicks in the Executive grid. Branches across AzureMetrics, AzureDiagnostics, or SecurityAlert depending on the KPI selected.
+// Sources: AzureMetrics, AzureDiagnostics (RequestResponse), SecurityAlert
+// Output:  TimeGenerated (datetime), Value (double), Series (string)
+// Params:  {TimeRange}, {SelectedKPI}
+//
+// Note: workbook tokens like {TimeRange}, {ModelFilter} and {SelectedKPI} are
+// substituted by Azure Monitor Workbooks at run time. To run a file directly
+// in the Log Analytics blade, replace {TimeRange} with e.g. > ago(24h) and
+// any string tokens (e.g. {SelectedKPI}) with a quoted literal.
+// =============================================================================
+
 let kpi = "{SelectedKPI}";
 let metric_for_kpi = case(
     kpi == "Total Requests",   "ModelRequests",

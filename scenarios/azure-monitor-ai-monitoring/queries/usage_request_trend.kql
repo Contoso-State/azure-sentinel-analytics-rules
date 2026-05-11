@@ -1,3 +1,18 @@
+// =============================================================================
+// Requests Trend by Model
+// =============================================================================
+// File:    usage_request_trend.kql
+// Purpose: Per-model request counts in 15-minute buckets, sourced from RequestResponse diagnostic logs. Used as the requests-over-time chart on Executive and Usage & Cost tabs.
+// Sources: AzureDiagnostics (Category=RequestResponse)
+// Output:  TimeGenerated, ModelDeployment, Requests
+// Params:  {TimeRange}
+//
+// Note: workbook tokens like {TimeRange}, {ModelFilter} and {SelectedKPI} are
+// substituted by Azure Monitor Workbooks at run time. To run a file directly
+// in the Log Analytics blade, replace {TimeRange} with e.g. > ago(24h) and
+// any string tokens (e.g. {SelectedKPI}) with a quoted literal.
+// =============================================================================
+
 AzureDiagnostics
 | where TimeGenerated {TimeRange}
 | where ResourceProvider == "MICROSOFT.COGNITIVESERVICES"

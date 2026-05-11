@@ -1,3 +1,18 @@
+// =============================================================================
+// Executive KPIs
+// =============================================================================
+// File:    exec_kpi.kql
+// Purpose: Aggregate counters shown on the Executive tab of the workbook (Total Requests, Total Tokens, Input/Output Tokens, Blocked Calls, 429 Throttles, 4xx Client Errors, 5xx Errors, Defender Alerts).
+// Sources: AzureMetrics, AzureDiagnostics (Category=RequestResponse), SecurityAlert
+// Output:  Two columns: Metric (string), Value (long)
+// Params:  {TimeRange}
+//
+// Note: workbook tokens like {TimeRange}, {ModelFilter} and {SelectedKPI} are
+// substituted by Azure Monitor Workbooks at run time. To run a file directly
+// in the Log Analytics blade, replace {TimeRange} with e.g. > ago(24h) and
+// any string tokens (e.g. {SelectedKPI}) with a quoted literal.
+// =============================================================================
+
 let m = AzureMetrics
 | where TimeGenerated {TimeRange}
 | where ResourceProvider == "MICROSOFT.COGNITIVESERVICES";

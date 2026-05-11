@@ -1,4 +1,18 @@
-// Per-model latency from RequestResponse durations (AzureMetrics latency has no model dim here)
+// =============================================================================
+// Latency by Model
+// =============================================================================
+// File:    ops_latency.kql
+// Purpose: Per-model latency (avg, p50, p95) in 15-minute buckets, derived from the DurationMs field on RequestResponse rows.
+// Sources: AzureDiagnostics (Category=RequestResponse)
+// Output:  TimeGenerated, ModelDeployment, AvgMs, P50Ms, P95Ms
+// Params:  {TimeRange}, {ModelFilter}
+//
+// Note: workbook tokens like {TimeRange}, {ModelFilter} and {SelectedKPI} are
+// substituted by Azure Monitor Workbooks at run time. To run a file directly
+// in the Log Analytics blade, replace {TimeRange} with e.g. > ago(24h) and
+// any string tokens (e.g. {SelectedKPI}) with a quoted literal.
+// =============================================================================
+
 AzureDiagnostics
 | where TimeGenerated {TimeRange}
 | where ResourceProvider == "MICROSOFT.COGNITIVESERVICES"

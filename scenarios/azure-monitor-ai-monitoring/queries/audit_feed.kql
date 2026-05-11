@@ -1,5 +1,18 @@
-// Cognitive Services admin/write events from Activity Log.
-// Forced 30d window: governance events are sparse and TimeRange (e.g. 24h) often returns nothing.
+// =============================================================================
+// Cognitive Services Audit Feed
+// =============================================================================
+// File:    audit_feed.kql
+// Purpose: Admin / write / delete events against Cognitive Services resources from the Azure Activity Log. Fixed 30-day window because governance events are sparse.
+// Sources: AzureActivity
+// Output:  TimeGenerated, OperationNameValue, ActivityStatusValue, Caller, ResourceGroup, _ResourceId
+// Params:  (none — 30d hard-coded)
+//
+// Note: workbook tokens like {TimeRange}, {ModelFilter} and {SelectedKPI} are
+// substituted by Azure Monitor Workbooks at run time. To run a file directly
+// in the Log Analytics blade, replace {TimeRange} with e.g. > ago(24h) and
+// any string tokens (e.g. {SelectedKPI}) with a quoted literal.
+// =============================================================================
+
 AzureActivity
 | where TimeGenerated > ago(30d)
 | where ResourceProviderValue =~ "MICROSOFT.COGNITIVESERVICES"

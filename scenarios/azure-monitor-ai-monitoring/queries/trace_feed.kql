@@ -1,4 +1,18 @@
-// Recent successful calls (sampled) — full Trace category not enabled in this workspace
+// =============================================================================
+// Trace Feed (Successful Calls)
+// =============================================================================
+// File:    trace_feed.kql
+// Purpose: Sample of recent successful RequestResponse rows (HTTP < 400). The full Trace diagnostic category is not always enabled — this is the closest substitute.
+// Sources: AzureDiagnostics (Category=RequestResponse)
+// Output:  TimeGenerated, Resource, ModelDeployment, ModelName, StreamType, StatusCode, DurationMs, CorrelationId
+// Params:  {TimeRange}, {ModelFilter}
+//
+// Note: workbook tokens like {TimeRange}, {ModelFilter} and {SelectedKPI} are
+// substituted by Azure Monitor Workbooks at run time. To run a file directly
+// in the Log Analytics blade, replace {TimeRange} with e.g. > ago(24h) and
+// any string tokens (e.g. {SelectedKPI}) with a quoted literal.
+// =============================================================================
+
 AzureDiagnostics
 | where TimeGenerated {TimeRange}
 | where ResourceProvider == "MICROSOFT.COGNITIVESERVICES"

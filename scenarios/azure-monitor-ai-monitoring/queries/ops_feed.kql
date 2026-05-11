@@ -1,3 +1,18 @@
+// =============================================================================
+// RequestResponse Error Feed
+// =============================================================================
+// File:    ops_feed.kql
+// Purpose: Most recent failed RequestResponse rows (HTTP >= 400) with correlation IDs, for incident triage.
+// Sources: AzureDiagnostics (Category=RequestResponse)
+// Output:  TimeGenerated, Resource, ModelDeployment, ModelName, StreamType, StatusCode, DurationMs, CorrelationId
+// Params:  {TimeRange}, {ModelFilter}
+//
+// Note: workbook tokens like {TimeRange}, {ModelFilter} and {SelectedKPI} are
+// substituted by Azure Monitor Workbooks at run time. To run a file directly
+// in the Log Analytics blade, replace {TimeRange} with e.g. > ago(24h) and
+// any string tokens (e.g. {SelectedKPI}) with a quoted literal.
+// =============================================================================
+
 AzureDiagnostics
 | where TimeGenerated {TimeRange}
 | where ResourceProvider == "MICROSOFT.COGNITIVESERVICES"

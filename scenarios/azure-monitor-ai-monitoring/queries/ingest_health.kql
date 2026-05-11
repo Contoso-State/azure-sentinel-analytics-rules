@@ -1,3 +1,18 @@
+// =============================================================================
+// Telemetry Ingestion Health
+// =============================================================================
+// File:    ingest_health.kql
+// Purpose: Which Azure tables are receiving Cognitive Services data right now. Use this first when tiles are blank.
+// Sources: AzureDiagnostics, AzureMetrics, AzureActivity, SecurityAlert
+// Output:  Source, Status, Records, LastSeen
+// Params:  (none — 24h hard-coded)
+//
+// Note: workbook tokens like {TimeRange}, {ModelFilter} and {SelectedKPI} are
+// substituted by Azure Monitor Workbooks at run time. To run a file directly
+// in the Log Analytics blade, replace {TimeRange} with e.g. > ago(24h) and
+// any string tokens (e.g. {SelectedKPI}) with a quoted literal.
+// =============================================================================
+
 let diag = AzureDiagnostics
 | where TimeGenerated > ago(24h)
 | where ResourceProvider == "MICROSOFT.COGNITIVESERVICES"

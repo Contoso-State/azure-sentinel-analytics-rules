@@ -1,6 +1,18 @@
-// Per-model token totals are not exposed in AzureMetrics for this workspace.
-// We approximate per-model cost by splitting aggregate token volume according to
-// the per-model request share derived from AzureDiagnostics RequestResponse.
+// =============================================================================
+// Estimated Daily Cost by Model
+// =============================================================================
+// File:    usage_cost.kql
+// Purpose: Approximates daily USD cost per model by splitting aggregate AzureMetrics token volume using the per-model request share from RequestResponse. Per-model price-per-million-tokens constants are defined at the top of the query — edit them to match your contract.
+// Sources: AzureMetrics + AzureDiagnostics (RequestResponse)
+// Output:  Day, ModelDeployment, Requests, InputTokens, OutputTokens, EstCostUSD
+// Params:  {TimeRange}
+//
+// Note: workbook tokens like {TimeRange}, {ModelFilter} and {SelectedKPI} are
+// substituted by Azure Monitor Workbooks at run time. To run a file directly
+// in the Log Analytics blade, replace {TimeRange} with e.g. > ago(24h) and
+// any string tokens (e.g. {SelectedKPI}) with a quoted literal.
+// =============================================================================
+
 let rate_phi4_in      = 0.125;
 let rate_phi4_out     = 0.500;
 let rate_llama33_in   = 0.710;

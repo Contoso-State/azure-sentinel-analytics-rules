@@ -1,4 +1,18 @@
-// All Cognitive Services activity (read+write) — 30d window.
+// =============================================================================
+// Azure Activity Feed (Cognitive Services)
+// =============================================================================
+// File:    activity_feed.kql
+// Purpose: Every Activity Log event (read + write) for Cognitive Services resources. 30-day window.
+// Sources: AzureActivity
+// Output:  TimeGenerated, OperationNameValue, ActivityStatusValue, Caller, ResourceGroup, ResourceId
+// Params:  (none — 30d hard-coded)
+//
+// Note: workbook tokens like {TimeRange}, {ModelFilter} and {SelectedKPI} are
+// substituted by Azure Monitor Workbooks at run time. To run a file directly
+// in the Log Analytics blade, replace {TimeRange} with e.g. > ago(24h) and
+// any string tokens (e.g. {SelectedKPI}) with a quoted literal.
+// =============================================================================
+
 AzureActivity
 | where TimeGenerated > ago(30d)
 | where ResourceProviderValue =~ "MICROSOFT.COGNITIVESERVICES"

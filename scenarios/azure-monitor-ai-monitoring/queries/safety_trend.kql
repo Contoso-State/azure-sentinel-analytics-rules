@@ -1,3 +1,18 @@
+// =============================================================================
+// Safety / Error Volume Trend
+// =============================================================================
+// File:    safety_trend.kql
+// Purpose: Hourly trend of BlockedCalls, ClientErrors, TotalErrors, and SuccessfulCalls from AzureMetrics. Shows whether content safety or error volume is rising over time.
+// Sources: AzureMetrics
+// Output:  TimeGenerated, MetricName, Value
+// Params:  {TimeRange}
+//
+// Note: workbook tokens like {TimeRange}, {ModelFilter} and {SelectedKPI} are
+// substituted by Azure Monitor Workbooks at run time. To run a file directly
+// in the Log Analytics blade, replace {TimeRange} with e.g. > ago(24h) and
+// any string tokens (e.g. {SelectedKPI}) with a quoted literal.
+// =============================================================================
+
 AzureMetrics
 | where TimeGenerated {TimeRange}
 | where ResourceProvider == "MICROSOFT.COGNITIVESERVICES"

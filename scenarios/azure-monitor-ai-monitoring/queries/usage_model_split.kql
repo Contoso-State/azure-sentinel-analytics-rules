@@ -1,3 +1,18 @@
+// =============================================================================
+// Model Split — Requests vs Tokens
+// =============================================================================
+// File:    usage_model_split.kql
+// Purpose: Per-model summary table with request count, average duration, errors, and throttles. Exports ModelDeployment as the ModelFilter parameter when a row is clicked in the workbook.
+// Sources: AzureDiagnostics (Category=RequestResponse)
+// Output:  ModelDeployment, ModelName, ModelVersion, StreamType, Requests, AvgDurationMs, Errors, Throttles
+// Params:  {TimeRange}
+//
+// Note: workbook tokens like {TimeRange}, {ModelFilter} and {SelectedKPI} are
+// substituted by Azure Monitor Workbooks at run time. To run a file directly
+// in the Log Analytics blade, replace {TimeRange} with e.g. > ago(24h) and
+// any string tokens (e.g. {SelectedKPI}) with a quoted literal.
+// =============================================================================
+
 AzureDiagnostics
 | where TimeGenerated {TimeRange}
 | where ResourceProvider == "MICROSOFT.COGNITIVESERVICES"

@@ -1,3 +1,18 @@
+// =============================================================================
+// Defender for AI Alerts
+// =============================================================================
+// File:    defender_alerts.kql
+// Purpose: All Defender for Cloud / Defender for AI alerts that look AI-related (prompt-injection, jailbreak, model abuse, etc.).
+// Sources: SecurityAlert
+// Output:  TimeGenerated, AlertName, AlertSeverity, ProductName, Description (truncated)
+// Params:  {TimeRange}
+//
+// Note: workbook tokens like {TimeRange}, {ModelFilter} and {SelectedKPI} are
+// substituted by Azure Monitor Workbooks at run time. To run a file directly
+// in the Log Analytics blade, replace {TimeRange} with e.g. > ago(24h) and
+// any string tokens (e.g. {SelectedKPI}) with a quoted literal.
+// =============================================================================
+
 SecurityAlert
 | where TimeGenerated {TimeRange}
 | where ProductName has_any ("Azure AI", "Defender for AI", "Microsoft Defender for Cloud")

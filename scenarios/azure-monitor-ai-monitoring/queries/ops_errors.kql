@@ -1,3 +1,18 @@
+// =============================================================================
+// 429 / 4xx / 5xx Trend
+// =============================================================================
+// File:    ops_errors.kql
+// Purpose: Per-model time-series of throttles (429), client errors (4xx excluding 429), and server errors (5xx).
+// Sources: AzureDiagnostics (Category=RequestResponse)
+// Output:  TimeGenerated, ModelDeployment, Throttles429, Client4xx, Server5xx
+// Params:  {TimeRange}, {ModelFilter}
+//
+// Note: workbook tokens like {TimeRange}, {ModelFilter} and {SelectedKPI} are
+// substituted by Azure Monitor Workbooks at run time. To run a file directly
+// in the Log Analytics blade, replace {TimeRange} with e.g. > ago(24h) and
+// any string tokens (e.g. {SelectedKPI}) with a quoted literal.
+// =============================================================================
+
 AzureDiagnostics
 | where TimeGenerated {TimeRange}
 | where ResourceProvider == "MICROSOFT.COGNITIVESERVICES"

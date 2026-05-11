@@ -1,3 +1,18 @@
+// =============================================================================
+// Prompt / Output / Total Tokens
+// =============================================================================
+// File:    usage_token_trend.kql
+// Purpose: Hourly Input, Output, and Total token volume per resource. Note: per-model token split is not available from AzureMetrics — see usage_cost.kql for the approximation.
+// Sources: AzureMetrics (MetricName in InputTokens, OutputTokens, TotalTokens)
+// Output:  TimeGenerated, Resource, InputTokens, OutputTokens, TotalTokens
+// Params:  {TimeRange}
+//
+// Note: workbook tokens like {TimeRange}, {ModelFilter} and {SelectedKPI} are
+// substituted by Azure Monitor Workbooks at run time. To run a file directly
+// in the Log Analytics blade, replace {TimeRange} with e.g. > ago(24h) and
+// any string tokens (e.g. {SelectedKPI}) with a quoted literal.
+// =============================================================================
+
 AzureMetrics
 | where TimeGenerated {TimeRange}
 | where ResourceProvider == "MICROSOFT.COGNITIVESERVICES"
