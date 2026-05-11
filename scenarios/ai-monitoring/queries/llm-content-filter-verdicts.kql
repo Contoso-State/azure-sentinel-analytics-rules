@@ -1,0 +1,19 @@
+PyRITInteractions_CL
+| where TimeGenerated {TimeRange}
+| extend _cf = ContentFilterResult
+| extend _cfStr = tostring(_cf)
+| where isnotempty(_cfStr) and _cfStr !in ("{}", "null")
+// Flatten completion-side categories (hate, violence, sexual, self_harm, jailbreak, ...)
+| mv-apply cat = bag_keys(_cf) on (
+    extend
+        Category = tostring(cat),
+        CatVal   = _cf[tostring(cat)]
+)
+| where Category != "_prompt"
+| extend
+    Filtered = tobool(CatVal.filtered),
+    Severity = tostring(CatVal.severity),
+    Detected = tobool(CatVal.detected)
+| where Filtered == true or Detected == true
+| summarize FilteredHits = count() by ModelDeployment, Category, Severity=coalesce(Severity, "n/a")
+| order by FilteredHits desc

@@ -1,0 +1,9 @@
+PyRITInteractions_CL
+| where TimeGenerated {TimeRange}
+| summarize
+    MedianOutTokens = percentile(CompletionTokens, 50),
+    P95OutTokens    = percentile(CompletionTokens, 95),
+    AvgLatencyMs    = avg(LatencyMs),
+    Calls           = count()
+    by ModelDeployment, Refused
+| order by ModelDeployment asc, Refused asc

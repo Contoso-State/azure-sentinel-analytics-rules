@@ -1,0 +1,12 @@
+PyRITInteractions_CL
+| where TimeGenerated {TimeRange}
+| extend Caller = iff(isempty(CallerUPN), CallerIP, CallerUPN)
+| where isnotempty(Caller)
+| summarize
+    Interactions = count(),
+    Models       = make_set(ModelDeployment, 10),
+    Refusals     = countif(Refused),
+    Tokens       = sum(TotalTokens)
+    by Caller
+| order by Interactions desc
+| take 20

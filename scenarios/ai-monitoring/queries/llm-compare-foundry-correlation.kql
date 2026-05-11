@@ -1,0 +1,19 @@
+let pyrit = PyRITInteractions_CL
+    | where TimeGenerated {TimeRange}
+    | project pyTime=TimeGenerated, ModelDeployment, AttackName, Refused, Blocked, CallerIP,
+              PromptExcerpt=substring(Prompt, 0, 150);
+let diag = AzureDiagnostics
+    | where TimeGenerated {TimeRange}
+    | where ResourceProvider == "MICROSOFT.COGNITIVESERVICES" and Category == "RequestResponse"
+    | extend props = parse_json(properties_s)
+    | project diagTime=TimeGenerated, OperationName, ResultSignature, DurationMs,
+              ResponseLength = toint(props.responseLength),
+              ApiName = tostring(props.apiName);
+pyrit
+| extend joinKey = bin(pyTime, 1m)
+| join kind=inner (diag | extend joinKey = bin(diagTime, 1m)) on joinKey
+| where abs(datetime_diff('second', pyTime, diagTime)) <= 60
+| project pyTime, ModelDeployment, AttackName, OperationName, ResultSignature,
+          DurationMs, ResponseLength, Refused, Blocked, PromptExcerpt
+| order by pyTime desc
+| take 100

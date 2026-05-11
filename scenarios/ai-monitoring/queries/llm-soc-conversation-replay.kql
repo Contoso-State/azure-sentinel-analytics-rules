@@ -1,0 +1,6 @@
+PyRITInteractions_CL
+| where TimeGenerated {TimeRange}
+| where ConversationId == '{ConversationIdFilter}' or '{ConversationIdFilter}' == ''
+| order by TurnNumber asc
+| project TimeGenerated, TurnNumber, ModelDeployment, Prompt, Completion,
+          Refused, Blocked, PromptTokens, CompletionTokens, LatencyMs

@@ -1,0 +1,8 @@
+SecurityAlert
+| where TimeGenerated {TimeRange}
+| where ProductName has_any ("Azure AI", "Defender for AI", "Microsoft Defender for Cloud")
+   or AlertName has_any ("prompt", "LLM", "jailbreak", "foundry", "openai")
+   or Entities has "aif-cst-aiatk-a6"
+| project TimeGenerated, AlertName, AlertSeverity, ProductName, Description=substring(Description, 0, 300)
+| order by TimeGenerated desc
+| take 50

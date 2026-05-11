@@ -1,0 +1,15 @@
+let rows = PyRITInteractions_CL
+| where TimeGenerated {TimeRange};
+let kpi_calls = rows
+    | summarize v=count()
+    | project Value=v, Metric="Total Interactions";
+let kpi_tokens = rows
+    | summarize v=toint(sum(TotalTokens))
+    | project Value=v, Metric="Total Tokens";
+let kpi_refuse = rows
+    | summarize v=toint(round(100.0 * countif(Refused) / count(), 0))
+    | project Value=v, Metric="Refusal % (All Models)";
+let kpi_models = rows
+    | summarize v=dcount(ModelDeployment)
+    | project Value=v, Metric="Models Hit";
+kpi_calls | union kpi_tokens | union kpi_refuse | union kpi_models

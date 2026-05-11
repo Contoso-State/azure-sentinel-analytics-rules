@@ -1,0 +1,11 @@
+PyRITInteractions_CL
+| where TimeGenerated {TimeRange}
+| summarize
+    Total   = count(),
+    Refused = countif(Refused),
+    Blocked = countif(Blocked)
+    by ModelDeployment
+| extend RefusalPct = round(100.0 * Refused / Total, 1)
+| extend BlockPct   = round(100.0 * Blocked / Total, 1)
+| project ModelDeployment, Total, Refused, Blocked, RefusalPct, BlockPct
+| order by RefusalPct desc

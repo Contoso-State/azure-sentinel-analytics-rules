@@ -1,0 +1,11 @@
+PyRITInteractions_CL
+| where TimeGenerated {TimeRange}
+| where isnotempty(AttackName)
+| summarize
+    Attempts    = count(),
+    Refused     = countif(Refused),
+    Blocked     = countif(Blocked),
+    ModelsHit   = make_set(ModelDeployment, 5)
+    by AttackCategory, AttackName
+| extend RefusalPct = round(100.0 * Refused / Attempts, 1)
+| order by Attempts desc

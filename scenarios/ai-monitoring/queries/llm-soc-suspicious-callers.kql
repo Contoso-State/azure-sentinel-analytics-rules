@@ -1,0 +1,20 @@
+let phraseRegex = @"(ignore previous|DAN|jailbreak|system prompt|bypass|uncensored|base64|rot13|decode this)";
+PyRITInteractions_CL
+| where TimeGenerated {TimeRange}
+| extend PromptLower   = tolower(Prompt)
+| extend PhraseHits    = array_length(extract_all(phraseRegex, PromptLower))
+| extend LikelyBase64  = iff(Prompt matches regex @"[A-Za-z0-9+/]{40,}={0,2}", true, false)
+| extend IsSuspicious  = (PhraseHits > 0 or LikelyBase64)
+| extend Caller        = iff(isempty(CallerUPN), CallerIP, CallerUPN)
+| where isnotempty(Caller)
+| summarize
+    Total       = count(),
+    Suspicious  = countif(IsSuspicious),
+    Bypassed    = countif(IsSuspicious and Refused == false and Blocked == false),
+    Models      = make_set(ModelDeployment, 5),
+    FirstSeen   = min(TimeGenerated),
+    LastSeen    = max(TimeGenerated)
+    by Caller
+| extend SuspiciousPct = round(100.0 * Suspicious / Total, 1)
+| order by Bypassed desc, Suspicious desc
+| take 25

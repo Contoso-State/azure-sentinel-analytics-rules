@@ -1,0 +1,9 @@
+PyRITInteractions_CL
+| where TimeGenerated {TimeRange}
+| project TimeGenerated, ModelDeployment, AttackName,
+          PromptExcerpt = substring(Prompt, 0, 150),
+          CompletionExcerpt = substring(Completion, 0, 150),
+          Refused, Blocked,
+          Caller = iff(isempty(CallerUPN), CallerIP, CallerUPN)
+| order by TimeGenerated desc
+| take 50

@@ -1,0 +1,14 @@
+PyRITInteractions_CL
+| where TimeGenerated {TimeRange}
+| extend PromptLower = tolower(Prompt)
+| extend MatchedPhrases = extract_all(@"(ignore previous|ignore all previous|disregard previous|DAN|developer mode|jailbreak|unlock|system prompt|repeat everything above|reveal your instructions|you are now|pretend you|act as|roleplay|bypass|disable your|without restriction|uncensored|base64|rot13|leetspeak|decode this)", PromptLower)
+| extend PhraseHits = array_length(MatchedPhrases)
+| extend LikelyBase64 = iff(Prompt matches regex @"[A-Za-z0-9+/]{40,}={0,2}", true, false)
+| where PhraseHits > 0 or LikelyBase64 == true
+| project TimeGenerated, ModelDeployment, AttackName, AttackCategory,
+          Refused, Blocked, PhraseHits, MatchedPhrases = tostring(MatchedPhrases), LikelyBase64,
+          PromptExcerpt = substring(Prompt, 0, 200),
+          CompletionExcerpt = substring(Completion, 0, 200),
+          CallerUPN, CallerIP, ConversationId
+| order by TimeGenerated desc
+| take 200

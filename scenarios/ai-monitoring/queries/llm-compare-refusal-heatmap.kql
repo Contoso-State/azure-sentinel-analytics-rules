@@ -1,0 +1,8 @@
+PyRITInteractions_CL
+| where TimeGenerated {TimeRange}
+| where isnotempty(AttackCategory)
+| summarize Total=count(), Refused=countif(Refused), Blocked=countif(Blocked)
+    by ModelDeployment, AttackCategory
+| extend RefusalPct = round(100.0 * Refused / Total, 1)
+| extend BlockPct   = round(100.0 * Blocked / Total, 1)
+| order by AttackCategory asc, ModelDeployment asc

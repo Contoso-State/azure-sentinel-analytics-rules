@@ -1,0 +1,21 @@
+let rate_phi4_in       = 0.125;
+let rate_phi4_out      = 0.500;
+let rate_llama33_in    = 0.710;
+let rate_llama33_out   = 0.710;
+PyRITInteractions_CL
+| where TimeGenerated {TimeRange}
+| extend InCost_USD = case(
+    ModelDeployment == "phi-4",          (todouble(PromptTokens)     / 1000000.0) * rate_phi4_in,
+    ModelDeployment == "llama-3-3-70b",  (todouble(PromptTokens)     / 1000000.0) * rate_llama33_in,
+    0.0)
+| extend OutCost_USD = case(
+    ModelDeployment == "phi-4",          (todouble(CompletionTokens) / 1000000.0) * rate_phi4_out,
+    ModelDeployment == "llama-3-3-70b",  (todouble(CompletionTokens) / 1000000.0) * rate_llama33_out,
+    0.0)
+| summarize
+    Calls         = count(),
+    PromptTokens  = sum(PromptTokens),
+    OutputTokens  = sum(CompletionTokens),
+    EstCostUSD    = round(sum(InCost_USD + OutCost_USD), 4)
+    by bin(TimeGenerated, 1d), ModelDeployment
+| order by TimeGenerated asc
