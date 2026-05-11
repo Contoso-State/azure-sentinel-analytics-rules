@@ -1,0 +1,23 @@
+let rate_phi4_in      = 0.125;
+let rate_phi4_out     = 0.500;
+let rate_llama33_in   = 0.710;
+let rate_llama33_out  = 0.710;
+AzureMetrics
+| where TimeGenerated {TimeRange}
+| where ResourceProvider == "MICROSOFT.COGNITIVESERVICES"
+| where MetricName in ("ProcessedPromptTokens", "InputTokens", "GeneratedTokens", "OutputTokens")
+| extend dims = todynamic(Tags)
+| extend ModelDeployment = coalesce(
+    tostring(dims["ModelDeploymentName"]),
+    tostring(dims["ModelDeployment"]),
+    tostring(dims["modelDeploymentName"]),
+    Resource)
+| summarize
+    PromptTokens = sumif(todouble(coalesce(Total, 0.0)), MetricName in ("ProcessedPromptTokens", "InputTokens")),
+    OutputTokens = sumif(todouble(coalesce(Total, 0.0)), MetricName in ("GeneratedTokens", "OutputTokens"))
+    by bin(TimeGenerated, 1d), ModelDeployment
+| extend EstCostUSD = case(
+    ModelDeployment =~ "phi-4",         (PromptTokens / 1000000.0) * rate_phi4_in + (OutputTokens / 1000000.0) * rate_phi4_out,
+    ModelDeployment =~ "llama-3-3-70b", (PromptTokens / 1000000.0) * rate_llama33_in + (OutputTokens / 1000000.0) * rate_llama33_out,
+    real(null))
+| order by TimeGenerated asc

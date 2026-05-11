@@ -1,0 +1,7 @@
+AzureDiagnostics
+| where TimeGenerated {TimeRange}
+| where ResourceProvider == "MICROSOFT.COGNITIVESERVICES"
+| where Category == "Audit"
+| project TimeGenerated, OperationName, ResultType, ResultSignature, CallerIPAddress, identity_claim_appid_g, properties_s
+| order by TimeGenerated desc
+| take 100

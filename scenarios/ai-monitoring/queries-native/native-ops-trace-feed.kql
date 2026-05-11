@@ -1,0 +1,7 @@
+AzureDiagnostics
+| where TimeGenerated {TimeRange}
+| where ResourceProvider == "MICROSOFT.COGNITIVESERVICES"
+| where Category == "Trace"
+| project TimeGenerated, OperationName, ResultType, ResultSignature, Message, properties_s
+| order by TimeGenerated desc
+| take 100

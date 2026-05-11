@@ -1,0 +1,12 @@
+AzureMetrics
+| where TimeGenerated {TimeRange}
+| where ResourceProvider == "MICROSOFT.COGNITIVESERVICES"
+| where MetricName in ("AzureOpenAITimeToResponse", "TimeToResponse", "TimeToLastByte", "AzureOpenAITTLTInMS", "AzureOpenAINormalizedTTFTInMS")
+| extend dims = todynamic(Tags)
+| extend ModelDeployment = coalesce(
+    tostring(dims["ModelDeploymentName"]),
+    tostring(dims["ModelDeployment"]),
+    tostring(dims["modelDeploymentName"]),
+    Resource)
+| summarize AvgLatencyMs=avg(todouble(coalesce(Average, Total, 0.0))) by bin(TimeGenerated, 15m), ModelDeployment, MetricName
+| order by TimeGenerated asc

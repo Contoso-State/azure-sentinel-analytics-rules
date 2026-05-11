@@ -1,0 +1,12 @@
+AzureMetrics
+| where TimeGenerated {TimeRange}
+| where ResourceProvider == "MICROSOFT.COGNITIVESERVICES"
+| where MetricName in ("AzureOpenAIRequests", "ModelRequests")
+| extend dims = todynamic(Tags)
+| extend ModelDeployment = coalesce(
+    tostring(dims["ModelDeploymentName"]),
+    tostring(dims["ModelDeployment"]),
+    tostring(dims["modelDeploymentName"]),
+    Resource)
+| summarize Requests = sum(todouble(coalesce(Total, 0.0))) by bin(TimeGenerated, 15m), ModelDeployment
+| order by TimeGenerated asc

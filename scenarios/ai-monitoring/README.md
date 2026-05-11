@@ -9,6 +9,68 @@ Monitor LLM interactions for operational usage, estimated token cost, and SOC hu
   - `workbooks/build_llm_interactions_workbook.py`
 - 17 standalone KQL files extracted from the workbook queries in `queries/`
 
+Native telemetry workbook assets (no custom table required):
+
+- `workbooks/build_native_llm_monitoring_workbook.py`
+- `workbooks/csu_native_llm_monitoring_workbook.json`
+- `queries-native/*.kql` (15 native telemetry queries)
+
+## Native Workbook (No PyRIT Table)
+
+Use this workbook when Azure AI Foundry diagnostics and metrics are already routed into Sentinel and you do not want custom ingestion through `PyRITInteractions_CL`.
+
+Workbook:
+
+- **CSU: Native LLM Monitoring — Usage, Cost, Safety & Defender**
+
+Native data sources:
+
+1. `AzureMetrics`
+2. `AzureDiagnostics`
+3. `SecurityAlert`
+4. `AzureActivity`
+
+Native workbook tabs:
+
+1. Executive
+2. Usage & Cost
+3. Safety & Ops
+4. Defender & Gov
+
+### Required Diagnostic Settings For Native Workbook
+
+On the Azure AI Foundry / Cognitive Services resource, route these to the same Log Analytics workspace used by Sentinel:
+
+1. **Logs**
+  - `Audit Logs`
+  - `Request and Response Logs`
+  - `Trace Logs`
+  - `Azure OpenAI Request Usage`
+2. **Metrics**
+  - `AllMetrics`
+
+If Microsoft Defender for AI is enabled, ensure alerts are present in `SecurityAlert`.
+
+### Deploy Native Workbook
+
+From `scenarios/ai-monitoring/workbooks`:
+
+```bash
+python3 build_native_llm_monitoring_workbook.py
+
+az deployment group create \
+  --resource-group rg-cst-monitor \
+  --template-file csu_native_llm_monitoring_workbook.json \
+  --parameters workspace=cst-security-law
+```
+
+### Native Validation
+
+1. Run `queries-native/native-ingestion-health.kql` and confirm all categories show `Receiving`.
+2. Run `queries-native/native-exec-kpi.kql` and verify non-zero values.
+3. Run `queries-native/native-defender-alerts.kql` and confirm Defender alerts appear when detections exist.
+4. Open the native workbook and verify all four tabs render with data.
+
 ## Workbook Overview
 
 The workbook has three tabs:
