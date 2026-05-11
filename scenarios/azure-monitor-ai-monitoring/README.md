@@ -4,6 +4,12 @@ A ready-to-deploy **Azure Workbook** that shows you how your Azure AI Foundry / 
 
 > **You do not need to be technical to deploy this.** Follow the steps below. The whole thing takes about 10 minutes.
 
+**Helpful background reading from Microsoft Learn** (you can skip these and come back later):
+- [What are Azure Monitor Workbooks?](https://learn.microsoft.com/azure/azure-monitor/visualize/workbooks-overview)
+- [Monitor Azure OpenAI](https://learn.microsoft.com/azure/ai-foundry/openai/how-to/monitor-openai)
+- [Monitor model deployments in Microsoft Foundry Models](https://learn.microsoft.com/azure/foundry/foundry-models/how-to/monitor-models)
+- [Microsoft Defender for Cloud — AI threat protection overview](https://learn.microsoft.com/azure/defender-for-cloud/ai-threat-protection)
+
 ---
 
 ## What you get
@@ -31,10 +37,10 @@ It has four tabs:
 ## What you need before you start
 
 1. **An Azure subscription** with at least one of:
-   - Azure AI Foundry resource (recommended), **or**
-   - Azure OpenAI resource
-2. **A Log Analytics workspace** (Sentinel workspace works too). If you don't have one, your IT team can create one in a few clicks.
-3. Permission to **deploy resources** to a resource group (Contributor role).
+   - [Azure AI Foundry](https://learn.microsoft.com/azure/ai-foundry/what-is-azure-ai-foundry) resource (recommended), **or**
+   - [Azure OpenAI](https://learn.microsoft.com/azure/ai-foundry/openai/overview) resource
+2. **A [Log Analytics workspace](https://learn.microsoft.com/azure/azure-monitor/logs/log-analytics-workspace-overview)** (a Microsoft Sentinel workspace works too). If you don't have one, [create one here](https://learn.microsoft.com/azure/azure-monitor/logs/quick-create-workspace).
+3. Permission to **deploy resources** to a resource group ([Contributor role](https://learn.microsoft.com/azure/role-based-access-control/built-in-roles#contributor)).
 
 That's it.
 
@@ -44,7 +50,16 @@ That's it.
 
 The workbook reads from Azure's **built-in** logs and metrics. You do **not** need to install any agents or custom code. You just need to tell your AI resource to send its logs to your workspace.
 
+> Microsoft Learn reference: [Diagnostic settings in Azure Monitor](https://learn.microsoft.com/azure/azure-monitor/essentials/diagnostic-settings).
+
 ### 1a. Send AI Foundry / Azure OpenAI logs to your workspace
+
+Follow the official Microsoft procedure for your resource type:
+- **Azure OpenAI:** [Monitor Azure OpenAI → Configure diagnostic settings](https://learn.microsoft.com/azure/ai-foundry/openai/how-to/monitor-openai#analyze-monitoring-data)
+- **Microsoft Foundry Models:** [Monitor model deployments → Configure diagnostic settings](https://learn.microsoft.com/azure/foundry/foundry-models/how-to/monitor-models#configure-diagnostic-settings)
+- **Azure AI services (general):** [Enable diagnostic logging](https://learn.microsoft.com/azure/ai-services/diagnostic-logging#enable-diagnostic-log-collection)
+
+Short version:
 
 1. Open the [Azure Portal](https://portal.azure.com).
 2. Search for and open your **Azure AI Foundry** (or **Azure OpenAI**) resource.
@@ -60,16 +75,20 @@ The workbook reads from Azure's **built-in** logs and metrics. You do **not** ne
 8. Under **Destination details**, tick **Send to Log Analytics workspace** and pick your workspace.
 9. Click **Save**.
 
-> Repeat this for every AI Foundry / Azure OpenAI resource you want to monitor.
+> Repeat this for every AI Foundry / Azure OpenAI resource you want to monitor. It can take up to two hours for the first logs to appear (see [Microsoft Learn note on initial latency](https://learn.microsoft.com/azure/ai-services/diagnostic-logging#enable-diagnostic-log-collection)).
 
 ### 1b. (Optional but recommended) Turn on Microsoft Defender for AI
 
+Follow the official walkthrough: [Enable threat protection for AI services](https://learn.microsoft.com/azure/defender-for-cloud/ai-onboarding).
+
+Short version:
+
 1. In the portal, search for **Microsoft Defender for Cloud**.
 2. Open **Environment settings** → pick your subscription → **Defender plans**.
-3. Find **AI workloads** (or **Defender for AI**) and toggle it **On**.
+3. Find **AI services** (Defender for AI) and toggle it **On**.
 4. Click **Save**.
 
-Defender for AI will start sending alerts about prompt-injection attempts, jailbreaks, sensitive data exposure, and other AI-specific risks into the **SecurityAlert** table — the **Defender & Gov** tab of the workbook will populate.
+Defender for AI then surfaces [alerts for AI workloads](https://learn.microsoft.com/azure/defender-for-cloud/alerts-ai-workloads) (prompt-injection, jailbreak, sensitive-data exposure, wallet-abuse, etc.) into the **SecurityAlert** table — the **Defender & Gov** tab of the workbook will populate automatically.
 
 ---
 
@@ -94,6 +113,8 @@ When the page opens:
 After about 30 seconds you will see "Your deployment is complete".
 
 ### Option B — Upload through the Workbooks gallery
+
+Reference: [Create an Azure Workbook — ARM template](https://learn.microsoft.com/azure/azure-monitor/visualize/workbooks-create-workbook).
 
 1. In the [Azure Portal](https://portal.azure.com), search for **Monitor** and open it.
 2. In the left menu, click **Workbooks**.
@@ -122,10 +143,10 @@ Use the **TimeRange** picker at the top to change the window (default: last 24 h
 
 | Data source | First data appears in |
 | --- | --- |
-| `AzureMetrics` (requests, tokens, latency) | **2–5 minutes** after a call is made to your model |
-| `AzureDiagnostics` (RequestResponse, Audit, Trace) | **5–15 minutes** |
-| `SecurityAlert` (Defender for AI) | **10–30 minutes** after Defender for AI is enabled |
-| `AzureActivity` (governance changes) | **3–10 minutes** |
+| [`AzureMetrics`](https://learn.microsoft.com/azure/azure-monitor/reference/tables/azuremetrics) (requests, tokens, latency) | **2–5 minutes** after a call is made to your model |
+| [`AzureDiagnostics`](https://learn.microsoft.com/azure/azure-monitor/reference/tables/azurediagnostics) (RequestResponse, Audit, Trace) | **5–15 minutes** |
+| [`SecurityAlert`](https://learn.microsoft.com/azure/azure-monitor/reference/tables/securityalert) (Defender for AI) | **10–30 minutes** after Defender for AI is enabled |
+| [`AzureActivity`](https://learn.microsoft.com/azure/azure-monitor/reference/tables/azureactivity) (governance changes) | **3–10 minutes** |
 
 If a tile shows "The query returned no results", widen the **TimeRange** at the top of the workbook — for low-traffic environments try **7 days** or **30 days**.
 
@@ -135,8 +156,8 @@ If a tile shows "The query returned no results", widen the **TimeRange** at the 
 
 Running the workbook is **free**. You only pay for:
 
-- The logs your AI resource sends to Log Analytics (standard Log Analytics ingestion rates).
-- Microsoft Defender for AI, if you enable it (per-resource pricing — see [Defender for Cloud pricing](https://azure.microsoft.com/pricing/details/defender-for-cloud/)).
+- The logs your AI resource sends to Log Analytics ([standard Log Analytics ingestion rates](https://azure.microsoft.com/pricing/details/monitor/) — see [cost calculations and options](https://learn.microsoft.com/azure/azure-monitor/logs/cost-logs)).
+- Microsoft Defender for AI, if you enable it ([Defender for Cloud pricing](https://azure.microsoft.com/pricing/details/defender-for-cloud/)).
 
 A single AI Foundry resource typically ingests **well under 1 GB / month** of diagnostic logs.
 
@@ -146,9 +167,11 @@ A single AI Foundry resource typically ingests **well under 1 GB / month** of di
 
 The [`queries/`](queries) folder contains every KQL query the workbook uses, as standalone `.kql` files. You don't need them to deploy — they are there so your security or platform team can:
 
-- Re-use the queries in **Sentinel analytics rules** or **Logs blade**.
-- Adapt them for **scheduled alert rules**.
+- Re-use the queries in [Microsoft Sentinel analytics rules](https://learn.microsoft.com/azure/sentinel/detect-threats-built-in) or the Log Analytics [**Logs** blade](https://learn.microsoft.com/azure/azure-monitor/logs/log-analytics-tutorial).
+- Adapt them for [scheduled alert rules](https://learn.microsoft.com/azure/sentinel/detect-threats-custom).
 - Audit exactly what the workbook is querying.
+
+Reference for the Kusto query language used in every file: [KQL quick reference](https://learn.microsoft.com/azure/data-explorer/kql-quick-reference).
 
 | File | What it does |
 | --- | --- |
@@ -174,16 +197,19 @@ The [`queries/`](queries) folder contains every KQL query the workbook uses, as 
 ## Troubleshooting
 
 **"The query returned no results" on every tile**
-→ The diagnostic setting in **Step 1a** is missing or points to a different workspace. Re-check and re-deploy.
+→ The diagnostic setting in **Step 1a** is missing or points to a different workspace. Re-check using [Troubleshoot Azure Monitor diagnostic settings](https://learn.microsoft.com/azure/azure-monitor/essentials/diagnostic-settings#troubleshooting) and re-deploy.
 
 **KPI grid shows 0 for everything**
-→ No traffic to your AI model in the selected time window. Widen **TimeRange** or send a test prompt to your model.
+→ No traffic to your AI model in the selected time window. Widen **TimeRange** or send a test prompt through the [Azure AI Foundry playground](https://learn.microsoft.com/azure/ai-foundry/quickstarts/get-started-playground).
 
 **Defender & Gov tab is empty**
-→ Defender for AI is not enabled (Step 1b). The Audit/Activity feeds use a fixed 30-day window so they will populate once any change is made.
+→ Defender for AI is not enabled (Step 1b). The Audit/Activity feeds use a fixed 30-day window so they will populate once any change is made. See [Alerts for AI workloads](https://learn.microsoft.com/azure/defender-for-cloud/alerts-ai-workloads) for a list of alerts that should appear.
 
 **I want to add my own model pricing**
-→ Edit the rate constants at the top of `usage_cost.kql` and re-deploy.
+→ Edit the rate constants at the top of [`queries/usage_cost.kql`](queries/usage_cost.kql) and re-deploy. Pricing reference: [Azure OpenAI pricing](https://azure.microsoft.com/pricing/details/cognitive-services/openai-service/).
+
+**I want to edit the workbook visuals**
+→ See [Workbook visualizations](https://learn.microsoft.com/azure/azure-monitor/visualize/workbooks-visualizations) and [Create interactive reports with Azure Monitor Workbooks](https://learn.microsoft.com/azure/azure-monitor/visualize/workbooks-interactive-reports).
 
 ---
 
