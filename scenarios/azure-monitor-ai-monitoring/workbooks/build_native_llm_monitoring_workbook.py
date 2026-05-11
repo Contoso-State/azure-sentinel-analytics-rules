@@ -633,7 +633,7 @@ arm_template = {
     "parameters": {
         "workspace": {
             "type": "string",
-            "defaultValue": "cst-security-law",
+            "defaultValue": "your-sentinel-workspace",
         },
         "workbookDisplayName": {
             "type": "string",

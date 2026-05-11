@@ -4,7 +4,7 @@
   "parameters": {
     "workspace": {
       "type": "string",
-      "defaultValue": "cst-security-law"
+      "defaultValue": "your-sentinel-workspace"
     },
     "workbookDisplayName": {
       "type": "string",
@@ -16,7 +16,7 @@
     }
   },
   "variables": {
-    "workbookId": "[guid('azure-monitor-ai-monitoring-workbook-v1')]",
+    "workbookId": "[guid(resourceGroup().id, 'azure-monitor-ai-monitoring-workbook-v1')]",
     "workspaceResourceId": "[resourceId('Microsoft.OperationalInsights/workspaces', parameters('workspace'))]"
   },
   "resources": [

@@ -59,9 +59,9 @@ From `scenarios/ai-monitoring/workbooks`:
 python3 build_native_llm_monitoring_workbook.py
 
 az deployment group create \
-  --resource-group rg-cst-monitor \
+  --resource-group <your-resource-group> \
   --template-file csu_native_llm_monitoring_workbook.json \
-  --parameters workspace=cst-security-law
+  --parameters workspace=<your-sentinel-workspace>
 ```
 
 ### Native Validation

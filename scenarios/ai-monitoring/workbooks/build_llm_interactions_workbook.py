@@ -17,7 +17,7 @@ Columns used:
 
 Run:    python3 build_llm_interactions_workbook.py
 Output: csu_llm_interactions_workbook.json
-Deploy: az deployment group create --resource-group rg-cst-monitor \
+Deploy: az deployment group create --resource-group your-resource-group \
           --template-file csu_llm_interactions_workbook.json
 """
 import json
@@ -594,7 +594,7 @@ arm_template = {
     "parameters": {
         "workspace": {
             "type": "string",
-            "defaultValue": "cst-security-law",
+            "defaultValue": "your-sentinel-workspace",
         },
         "workbookDisplayName": {
             "type": "string",
@@ -637,5 +637,5 @@ print(f"Notebook items: {len(notebook['items'])}")
 print()
 print("Deploy:")
 print("  az deployment group create \\")
-print("    --resource-group rg-cst-monitor \\")
+print("    --resource-group your-resource-group \\")
 print("    --template-file csu_llm_interactions_workbook.json")
