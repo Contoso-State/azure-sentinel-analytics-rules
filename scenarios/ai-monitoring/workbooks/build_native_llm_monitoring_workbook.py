@@ -15,7 +15,7 @@ Output: csu_native_llm_monitoring_workbook.json
 import json
 
 
-def tile(name, query, title, viz, size=0, width=None, chart_settings=None, tile_settings=None, export_field=None, export_param=None):
+def tile(name, query, title, viz, size=0, width=None, chart_settings=None, tile_settings=None, grid_settings=None, export_field=None, export_param=None):
     item = {
         "type": 3,
         "content": {
@@ -35,10 +35,13 @@ def tile(name, query, title, viz, size=0, width=None, chart_settings=None, tile_
         item["content"]["chartSettings"] = chart_settings
     if tile_settings:
         item["content"]["tileSettings"] = tile_settings
-    if export_field and export_param:
+    if grid_settings:
+        item["content"]["gridSettings"] = grid_settings
+    if export_field is not None and export_param is not None:
         item["content"]["exportFieldName"] = export_field
         item["content"]["exportParameterName"] = export_param
         item["content"]["exportDefaultValue"] = "*"
+        item["content"]["showExportToExcel"] = True
     return item
 
 
@@ -63,25 +66,38 @@ def group(name, tab_value, children):
     }
 
 
-KPI_TILE_SETTINGS = {
-    "titleContent": {"columnMatch": "Metric", "formatter": 1},
-    "leftContent": {
-        "columnMatch": "Value",
-        "formatter": 12,
-        "formatOptions": {
-            "min": 0,
-            "palette": "blue",
-        },
-        "numberFormat": {
-            "unit": 0,
-            "options": {
-                "style": "decimal",
-                "useGrouping": True,
-                "maximumFractionDigits": 0,
+KPI_GRID_SETTINGS = {
+    "formatters": [
+        {
+            "columnMatch": "Metric",
+            "formatter": 1,
+            "formatOptions": {
+                "customColumnWidthSetting": "30ch",
             },
         },
-    },
-    "showBorder": True,
+        {
+            "columnMatch": "Value",
+            "formatter": 8,
+            "formatOptions": {
+                "min": 0,
+                "palette": "blue",
+                "compositeBarSettings": {"labelText": ""},
+            },
+            "numberFormat": {
+                "unit": 0,
+                "options": {
+                    "style": "decimal",
+                    "useGrouping": True,
+                    "maximumFractionDigits": 0,
+                },
+            },
+        },
+    ],
+    "rowLimit": 20,
+    "labelSettings": [
+        {"columnId": "Metric", "label": "KPI (click row to drill)"},
+        {"columnId": "Value", "label": "Value"},
+    ],
 }
 
 
@@ -346,6 +362,45 @@ AzureActivity
 | take 200
 """.strip()
 
+Q_KPI_DETAIL = """
+// Time-series detail driven by the SelectedKPI parameter (clicked row in Executive KPIs grid).
+let kpi = "{SelectedKPI}";
+let metric_for_kpi = case(
+    kpi == "Total Requests",   "ModelRequests",
+    kpi == "Total Tokens",     "TotalTokens",
+    kpi == "Input Tokens",     "InputTokens",
+    kpi == "Output Tokens",    "OutputTokens",
+    kpi == "Blocked Calls",    "BlockedCalls",
+    "");
+let m_series = AzureMetrics
+| where TimeGenerated {TimeRange}
+| where ResourceProvider == "MICROSOFT.COGNITIVESERVICES"
+| where MetricName == metric_for_kpi
+| summarize Value = sum(todouble(coalesce(Total, 0.0))) by bin(TimeGenerated, 15m)
+| extend Series = kpi;
+let status_series = AzureDiagnostics
+| where TimeGenerated {TimeRange}
+| where ResourceProvider == "MICROSOFT.COGNITIVESERVICES"
+| where Category == "RequestResponse"
+| extend StatusCode = toint(ResultSignature)
+| where (kpi == "429 Throttles"     and StatusCode == 429)
+     or (kpi == "4xx Client Errors" and StatusCode between (400 .. 499) and StatusCode != 429)
+     or (kpi == "5xx Errors"        and StatusCode >= 500)
+| summarize Value = todouble(count()) by bin(TimeGenerated, 15m)
+| extend Series = kpi;
+let alert_series = SecurityAlert
+| where TimeGenerated {TimeRange}
+| where kpi == "Defender Alerts"
+| where ProductName has_any ("Azure AI", "Defender for AI", "Microsoft Defender for Cloud")
+    or AlertName has_any ("prompt", "LLM", "jailbreak", "foundry", "openai", "AI")
+| summarize Value = todouble(count()) by bin(TimeGenerated, 15m)
+| extend Series = kpi;
+m_series
+| union status_series
+| union alert_series
+| order by TimeGenerated asc
+""".strip()
+
 Q_INGEST_HEALTH = """
 let diag = AzureDiagnostics
 | where TimeGenerated > ago(24h)
@@ -421,6 +476,15 @@ params_panel = {
                 "isHiddenWhenLocked": True,
             },
             {
+                "id": "n1000000-0000-0000-0000-00000000n4",
+                "version": "KqlParameterItem/1.0",
+                "name": "SelectedKPI",
+                "type": 1,
+                "isRequired": False,
+                "value": "Total Requests",
+                "isHiddenWhenLocked": True,
+            },
+            {
                 "id": "n1000000-0000-0000-0000-00000000n3",
                 "version": "KqlParameterItem/1.0",
                 "name": "ModelFilter",
@@ -491,7 +555,8 @@ tab_executive = group(
             "exec-hdr",
             "### Executive\nNative AI posture summary from Foundry diagnostics + Defender for AI.",
         ),
-        tile("exec-kpi", Q_EXEC_KPI, "Executive KPIs", "tiles", size=4, tile_settings=KPI_TILE_SETTINGS, export_field="Metric", export_param="SelectedKPI"),
+        tile("exec-kpi", Q_EXEC_KPI, "Executive KPIs (click a row to drill)", "table", size=4, grid_settings=KPI_GRID_SETTINGS, export_field="Metric", export_param="SelectedKPI"),
+        tile("exec-kpi-detail", Q_KPI_DETAIL, "KPI Detail \u2014 {SelectedKPI}", "timechart"),
         tile("exec-requests", Q_USAGE_REQUEST_TREND, "Requests Trend by Model", "timechart", width="50"),
         tile("exec-safety", Q_SAFETY_TREND, "Safety Trend (Blocked/Harmful/Abusive)", "timechart", width="50"),
         tile("exec-health", Q_INGEST_HEALTH, "Telemetry Ingestion Health (last 24h)", "table"),

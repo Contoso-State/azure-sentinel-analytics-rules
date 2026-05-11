@@ -1,0 +1,36 @@
+// Time-series detail driven by the SelectedKPI parameter (clicked row in Executive KPIs grid).
+let kpi = "{SelectedKPI}";
+let metric_for_kpi = case(
+    kpi == "Total Requests",   "ModelRequests",
+    kpi == "Total Tokens",     "TotalTokens",
+    kpi == "Input Tokens",     "InputTokens",
+    kpi == "Output Tokens",    "OutputTokens",
+    kpi == "Blocked Calls",    "BlockedCalls",
+    "");
+let m_series = AzureMetrics
+| where TimeGenerated {TimeRange}
+| where ResourceProvider == "MICROSOFT.COGNITIVESERVICES"
+| where MetricName == metric_for_kpi
+| summarize Value = sum(todouble(coalesce(Total, 0.0))) by bin(TimeGenerated, 15m)
+| extend Series = kpi;
+let status_series = AzureDiagnostics
+| where TimeGenerated {TimeRange}
+| where ResourceProvider == "MICROSOFT.COGNITIVESERVICES"
+| where Category == "RequestResponse"
+| extend StatusCode = toint(ResultSignature)
+| where (kpi == "429 Throttles"     and StatusCode == 429)
+     or (kpi == "4xx Client Errors" and StatusCode between (400 .. 499) and StatusCode != 429)
+     or (kpi == "5xx Errors"        and StatusCode >= 500)
+| summarize Value = todouble(count()) by bin(TimeGenerated, 15m)
+| extend Series = kpi;
+let alert_series = SecurityAlert
+| where TimeGenerated {TimeRange}
+| where kpi == "Defender Alerts"
+| where ProductName has_any ("Azure AI", "Defender for AI", "Microsoft Defender for Cloud")
+    or AlertName has_any ("prompt", "LLM", "jailbreak", "foundry", "openai", "AI")
+| summarize Value = todouble(count()) by bin(TimeGenerated, 15m)
+| extend Series = kpi;
+m_series
+| union status_series
+| union alert_series
+| order by TimeGenerated asc
