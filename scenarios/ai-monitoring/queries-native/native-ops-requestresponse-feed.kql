@@ -1,13 +1,13 @@
 AzureDiagnostics
-| where TimeGenerated {TimeRange}
+| where TimeGenerated > ago(24h)
 | where ResourceProvider == "MICROSOFT.COGNITIVESERVICES"
 | where Category == "RequestResponse"
-| extend props = parse_json(properties_s)
-| extend ModelDeployment = coalesce(tostring(props.modelDeploymentName), tostring(AdditionalFields.ModelDeploymentName), Resource)
-| extend ApiName = coalesce(tostring(props.apiName), tostring(AdditionalFields.ApiName), OperationName)
-| extend StatusCode = toint(coalesce(tostring(props.statusCode), tostring(httpStatusCode_d), tostring(httpStatus_d)))
-| extend DurationMsValue = tolong(coalesce(tostring(props.durationMs), tostring(DurationMs), tostring(duration_milliseconds_d)))
-| where StatusCode >= 400 or ResultSignature !in ("Success", "OK")
-| project TimeGenerated, ModelDeployment, ApiName, StatusCode, ResultSignature, DurationMsValue, CallerIPAddress, requestUri_s
+| extend p = parse_json(properties_s)
+| extend ModelDeployment = coalesce(tostring(p.modelDeploymentName), Resource)
+| extend ModelName       = tostring(p.modelName)
+| extend StreamType      = tostring(p.streamType)
+| extend StatusCode      = toint(ResultSignature)
+| where StatusCode >= 400
+| project TimeGenerated, Resource, ModelDeployment, ModelName, StreamType, StatusCode, DurationMs, CorrelationId
 | order by TimeGenerated desc
 | take 250

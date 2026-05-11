@@ -1,15 +1,18 @@
-AzureMetrics
-| where TimeGenerated {TimeRange}
+AzureDiagnostics
+| where TimeGenerated > ago(24h)
 | where ResourceProvider == "MICROSOFT.COGNITIVESERVICES"
-| where MetricName in ("AzureOpenAIRequests", "ModelRequests", "TokenTransaction", "TotalTokens")
-| extend dims = todynamic(Tags)
-| extend ModelDeployment = coalesce(
-    tostring(dims["ModelDeploymentName"]),
-    tostring(dims["ModelDeployment"]),
-    tostring(dims["modelDeploymentName"]),
-    Resource)
+| where Category == "RequestResponse"
+| extend p = parse_json(properties_s)
+| extend ModelDeployment = tostring(p.modelDeploymentName)
+| extend ModelName       = tostring(p.modelName)
+| extend ModelVersion    = tostring(p.modelVersion)
+| extend StreamType      = tostring(p.streamType)
+| extend StatusCode      = toint(ResultSignature)
+| where ModelDeployment != ""
 | summarize
-    Requests = sumif(todouble(coalesce(Total, 0.0)), MetricName in ("AzureOpenAIRequests", "ModelRequests")),
-    Tokens   = sumif(todouble(coalesce(Total, 0.0)), MetricName in ("TokenTransaction", "TotalTokens"))
-    by ModelDeployment
+    Requests = count(),
+    AvgDurationMs = avg(todouble(DurationMs)),
+    Errors = countif(StatusCode >= 400),
+    Throttles = countif(StatusCode == 429)
+    by ModelDeployment, ModelName, ModelVersion, StreamType
 | order by Requests desc

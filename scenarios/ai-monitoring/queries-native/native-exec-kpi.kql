@@ -1,48 +1,50 @@
 let m = AzureMetrics
-| where TimeGenerated {TimeRange}
+| where TimeGenerated > ago(24h)
 | where ResourceProvider == "MICROSOFT.COGNITIVESERVICES";
 let kpi_requests = m
-| where MetricName in ("AzureOpenAIRequests", "ModelRequests")
+| where MetricName == "ModelRequests"
 | summarize v=toint(sum(todouble(coalesce(Total, 0.0))))
 | project Metric="Total Requests", Value=v;
 let kpi_tokens = m
-| where MetricName in ("TokenTransaction", "TotalTokens")
+| where MetricName == "TotalTokens"
 | summarize v=toint(sum(todouble(coalesce(Total, 0.0))))
 | project Metric="Total Tokens", Value=v;
+let kpi_input = m
+| where MetricName == "InputTokens"
+| summarize v=toint(sum(todouble(coalesce(Total, 0.0))))
+| project Metric="Input Tokens", Value=v;
+let kpi_output = m
+| where MetricName == "OutputTokens"
+| summarize v=toint(sum(todouble(coalesce(Total, 0.0))))
+| project Metric="Output Tokens", Value=v;
 let kpi_blocked = m
-| where MetricName == "RAIRejectedRequests"
+| where MetricName == "BlockedCalls"
 | summarize v=toint(sum(todouble(coalesce(Total, 0.0))))
-| project Metric="Blocked Volume", Value=v;
-let kpi_harmful = m
-| where MetricName == "RAIHarmfulRequests"
-| summarize v=toint(sum(todouble(coalesce(Total, 0.0))))
-| project Metric="Harmful Volume", Value=v;
-let kpi_abusive = m
-| where MetricName == "RAIAbusiveUsersCount"
-| summarize v=toint(sum(todouble(coalesce(Total, 0.0))))
-| project Metric="Potential Abusive Users", Value=v;
+| project Metric="Blocked Calls", Value=v;
 let ops = AzureDiagnostics
-| where TimeGenerated {TimeRange}
+| where TimeGenerated > ago(24h)
 | where ResourceProvider == "MICROSOFT.COGNITIVESERVICES"
 | where Category == "RequestResponse"
-| extend props = parse_json(properties_s)
-| extend StatusCode = toint(coalesce(tostring(props.statusCode), tostring(httpStatusCode_d), tostring(httpStatus_d)))
+| extend StatusCode = toint(ResultSignature)
 | summarize
     Throttles429 = countif(StatusCode == 429),
+    Errors4xx = countif(StatusCode between (400 .. 499) and StatusCode != 429),
     Server5xx = countif(StatusCode >= 500);
 let kpi_429 = ops | project Metric="429 Throttles", Value=Throttles429;
+let kpi_4xx = ops | project Metric="4xx Client Errors", Value=Errors4xx;
 let kpi_5xx = ops | project Metric="5xx Errors", Value=Server5xx;
 let kpi_alerts = SecurityAlert
-| where TimeGenerated {TimeRange}
+| where TimeGenerated > ago(24h)
 | where ProductName has_any ("Azure AI", "Defender for AI", "Microsoft Defender for Cloud")
-    or AlertName has_any ("prompt", "LLM", "jailbreak", "foundry", "openai")
+    or AlertName has_any ("prompt", "LLM", "jailbreak", "foundry", "openai", "AI")
 | summarize v=count()
 | project Metric="Defender Alerts", Value=v;
 kpi_requests
 | union kpi_tokens
+| union kpi_input
+| union kpi_output
 | union kpi_blocked
-| union kpi_harmful
-| union kpi_abusive
 | union kpi_429
+| union kpi_4xx
 | union kpi_5xx
 | union kpi_alerts

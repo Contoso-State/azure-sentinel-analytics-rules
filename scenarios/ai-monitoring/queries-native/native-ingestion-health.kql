@@ -1,10 +1,23 @@
-let d = AzureDiagnostics
+let diag = AzureDiagnostics
 | where TimeGenerated > ago(24h)
 | where ResourceProvider == "MICROSOFT.COGNITIVESERVICES"
-| summarize LastSeen=max(TimeGenerated) by Category;
-let expected = datatable(Category:string) ["Audit", "RequestResponse", "Trace", "AzureOpenAIRequestUsage"];
-expected
-| join kind=leftouter d on Category
-| extend Status = iff(isnull(LastSeen), "Missing in last 24h", "Receiving")
-| project Category, Status, LastSeen
-| order by Category asc
+| summarize Records=count(), LastSeen=max(TimeGenerated) by Source=strcat("AzureDiagnostics:", Category);
+let metrics = AzureMetrics
+| where TimeGenerated > ago(24h)
+| where ResourceProvider == "MICROSOFT.COGNITIVESERVICES"
+| summarize Records=count(), LastSeen=max(TimeGenerated) by Source="AzureMetrics:CognitiveServices";
+let activity = AzureActivity
+| where TimeGenerated > ago(24h)
+| where ResourceProviderValue =~ "MICROSOFT.COGNITIVESERVICES"
+| summarize Records=count(), LastSeen=max(TimeGenerated) by Source="AzureActivity:CognitiveServices";
+let alerts = SecurityAlert
+| where TimeGenerated > ago(24h)
+| where ProductName has_any ("Azure AI", "Defender for AI", "Microsoft Defender for Cloud")
+| summarize Records=count(), LastSeen=max(TimeGenerated) by Source="SecurityAlert:DefenderForAI";
+diag
+| union metrics
+| union activity
+| union alerts
+| extend Status = iff(Records > 0, "Receiving", "Missing in last 24h")
+| project Source, Status, Records, LastSeen
+| order by Source asc

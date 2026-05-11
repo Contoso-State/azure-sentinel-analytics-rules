@@ -1,7 +1,9 @@
-AzureDiagnostics
-| where TimeGenerated {TimeRange}
-| where ResourceProvider == "MICROSOFT.COGNITIVESERVICES"
-| where Category == "Audit"
-| project TimeGenerated, OperationName, ResultType, ResultSignature, CallerIPAddress, identity_claim_appid_g, properties_s
+// Resource-level admin/control-plane events from Activity Log
+// (AzureDiagnostics 'Audit' category is data-plane and may not be enabled on every account)
+AzureActivity
+| where TimeGenerated > ago(24h)
+| where ResourceProviderValue =~ "MICROSOFT.COGNITIVESERVICES"
+| where OperationNameValue has_any ("DEPLOYMENTS", "ACCOUNTS", "WRITE", "DELETE", "ACTION")
+| project TimeGenerated, OperationNameValue, ActivityStatusValue, Caller, ResourceGroup, _ResourceId
 | order by TimeGenerated desc
 | take 100

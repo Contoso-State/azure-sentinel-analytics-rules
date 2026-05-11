@@ -1,6 +1,6 @@
 AzureMetrics
-| where TimeGenerated {TimeRange}
+| where TimeGenerated > ago(24h)
 | where ResourceProvider == "MICROSOFT.COGNITIVESERVICES"
-| where MetricName in ("RAIRejectedRequests", "RAIHarmfulRequests", "RAITotalRequests", "RAIAbusiveUsersCount")
+| where MetricName in ("BlockedCalls", "ClientErrors", "TotalErrors", "SuccessfulCalls")
 | summarize Value=sum(todouble(coalesce(Total, 0.0))) by bin(TimeGenerated, 1h), MetricName
 | order by TimeGenerated asc

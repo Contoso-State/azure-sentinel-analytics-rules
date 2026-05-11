@@ -79,64 +79,63 @@ let m = AzureMetrics
 | where TimeGenerated {TimeRange}
 | where ResourceProvider == "MICROSOFT.COGNITIVESERVICES";
 let kpi_requests = m
-| where MetricName in ("AzureOpenAIRequests", "ModelRequests")
+| where MetricName == "ModelRequests"
 | summarize v=toint(sum(todouble(coalesce(Total, 0.0))))
 | project Metric="Total Requests", Value=v;
 let kpi_tokens = m
-| where MetricName in ("TokenTransaction", "TotalTokens")
+| where MetricName == "TotalTokens"
 | summarize v=toint(sum(todouble(coalesce(Total, 0.0))))
 | project Metric="Total Tokens", Value=v;
+let kpi_input = m
+| where MetricName == "InputTokens"
+| summarize v=toint(sum(todouble(coalesce(Total, 0.0))))
+| project Metric="Input Tokens", Value=v;
+let kpi_output = m
+| where MetricName == "OutputTokens"
+| summarize v=toint(sum(todouble(coalesce(Total, 0.0))))
+| project Metric="Output Tokens", Value=v;
 let kpi_blocked = m
-| where MetricName == "RAIRejectedRequests"
+| where MetricName == "BlockedCalls"
 | summarize v=toint(sum(todouble(coalesce(Total, 0.0))))
-| project Metric="Blocked Volume", Value=v;
-let kpi_harmful = m
-| where MetricName == "RAIHarmfulRequests"
-| summarize v=toint(sum(todouble(coalesce(Total, 0.0))))
-| project Metric="Harmful Volume", Value=v;
-let kpi_abusive = m
-| where MetricName == "RAIAbusiveUsersCount"
-| summarize v=toint(sum(todouble(coalesce(Total, 0.0))))
-| project Metric="Potential Abusive Users", Value=v;
+| project Metric="Blocked Calls", Value=v;
 let ops = AzureDiagnostics
 | where TimeGenerated {TimeRange}
 | where ResourceProvider == "MICROSOFT.COGNITIVESERVICES"
 | where Category == "RequestResponse"
-| extend props = parse_json(properties_s)
-| extend StatusCode = toint(coalesce(tostring(props.statusCode), tostring(httpStatusCode_d), tostring(httpStatus_d)))
+| extend StatusCode = toint(ResultSignature)
 | summarize
     Throttles429 = countif(StatusCode == 429),
+    Errors4xx = countif(StatusCode between (400 .. 499) and StatusCode != 429),
     Server5xx = countif(StatusCode >= 500);
 let kpi_429 = ops | project Metric="429 Throttles", Value=Throttles429;
+let kpi_4xx = ops | project Metric="4xx Client Errors", Value=Errors4xx;
 let kpi_5xx = ops | project Metric="5xx Errors", Value=Server5xx;
 let kpi_alerts = SecurityAlert
 | where TimeGenerated {TimeRange}
 | where ProductName has_any ("Azure AI", "Defender for AI", "Microsoft Defender for Cloud")
-    or AlertName has_any ("prompt", "LLM", "jailbreak", "foundry", "openai")
+    or AlertName has_any ("prompt", "LLM", "jailbreak", "foundry", "openai", "AI")
 | summarize v=count()
 | project Metric="Defender Alerts", Value=v;
 kpi_requests
 | union kpi_tokens
+| union kpi_input
+| union kpi_output
 | union kpi_blocked
-| union kpi_harmful
-| union kpi_abusive
 | union kpi_429
+| union kpi_4xx
 | union kpi_5xx
 | union kpi_alerts
 """.strip()
 
 Q_USAGE_REQUEST_TREND = """
-AzureMetrics
+AzureDiagnostics
 | where TimeGenerated {TimeRange}
 | where ResourceProvider == "MICROSOFT.COGNITIVESERVICES"
-| where MetricName in ("AzureOpenAIRequests", "ModelRequests")
-| extend dims = todynamic(Tags)
-| extend ModelDeployment = coalesce(
-    tostring(dims["ModelDeploymentName"]),
-    tostring(dims["ModelDeployment"]),
-    tostring(dims["modelDeploymentName"]),
-    Resource)
-| summarize Requests = sum(todouble(coalesce(Total, 0.0))) by bin(TimeGenerated, 15m), ModelDeployment
+| where Category == "RequestResponse"
+| extend p = parse_json(properties_s)
+| extend ModelDeployment = coalesce(tostring(p.modelDeploymentName), tostring(p.modelName), "unknown")
+| where ModelDeployment != "" and ModelDeployment != "unknown"
+| summarize Requests = count() by bin(TimeGenerated, 15m), ModelDeployment
 | order by TimeGenerated asc
 """.strip()
 
@@ -144,62 +143,80 @@ Q_USAGE_TOKEN_TREND = """
 AzureMetrics
 | where TimeGenerated {TimeRange}
 | where ResourceProvider == "MICROSOFT.COGNITIVESERVICES"
-| where MetricName in ("ProcessedPromptTokens", "InputTokens", "GeneratedTokens", "OutputTokens", "TokenTransaction", "TotalTokens")
-| extend dims = todynamic(Tags)
-| extend ModelDeployment = coalesce(
-    tostring(dims["ModelDeploymentName"]),
-    tostring(dims["ModelDeployment"]),
-    tostring(dims["modelDeploymentName"]),
-    Resource)
+| where MetricName in ("InputTokens", "OutputTokens", "TotalTokens")
 | summarize
-    PromptTokens = sumif(todouble(coalesce(Total, 0.0)), MetricName in ("ProcessedPromptTokens", "InputTokens")),
-    OutputTokens = sumif(todouble(coalesce(Total, 0.0)), MetricName in ("GeneratedTokens", "OutputTokens")),
-    TotalTokens  = sumif(todouble(coalesce(Total, 0.0)), MetricName in ("TokenTransaction", "TotalTokens"))
-    by bin(TimeGenerated, 1h), ModelDeployment
+    InputTokens  = sumif(todouble(coalesce(Total, 0.0)), MetricName == "InputTokens"),
+    OutputTokens = sumif(todouble(coalesce(Total, 0.0)), MetricName == "OutputTokens"),
+    TotalTokens  = sumif(todouble(coalesce(Total, 0.0)), MetricName == "TotalTokens")
+    by bin(TimeGenerated, 1h), Resource
 | order by TimeGenerated asc
 """.strip()
 
 Q_USAGE_COST = """
+// Per-model token totals are not exposed in AzureMetrics for this workspace.
+// We approximate per-model cost by splitting aggregate token volume according to
+// the per-model request share derived from AzureDiagnostics RequestResponse.
 let rate_phi4_in      = 0.125;
 let rate_phi4_out     = 0.500;
 let rate_llama33_in   = 0.710;
 let rate_llama33_out  = 0.710;
-AzureMetrics
+let tokens = AzureMetrics
 | where TimeGenerated {TimeRange}
 | where ResourceProvider == "MICROSOFT.COGNITIVESERVICES"
-| where MetricName in ("ProcessedPromptTokens", "InputTokens", "GeneratedTokens", "OutputTokens")
-| extend dims = todynamic(Tags)
-| extend ModelDeployment = coalesce(
-    tostring(dims["ModelDeploymentName"]),
-    tostring(dims["ModelDeployment"]),
-    tostring(dims["modelDeploymentName"]),
-    Resource)
+| where MetricName in ("InputTokens", "OutputTokens")
 | summarize
-    PromptTokens = sumif(todouble(coalesce(Total, 0.0)), MetricName in ("ProcessedPromptTokens", "InputTokens")),
-    OutputTokens = sumif(todouble(coalesce(Total, 0.0)), MetricName in ("GeneratedTokens", "OutputTokens"))
-    by bin(TimeGenerated, 1d), ModelDeployment
+    InputTokens  = sumif(todouble(coalesce(Total, 0.0)), MetricName == "InputTokens"),
+    OutputTokens = sumif(todouble(coalesce(Total, 0.0)), MetricName == "OutputTokens")
+    by Day=bin(TimeGenerated, 1d);
+let shares = AzureDiagnostics
+| where TimeGenerated {TimeRange}
+| where ResourceProvider == "MICROSOFT.COGNITIVESERVICES"
+| where Category == "RequestResponse"
+| extend p = parse_json(properties_s)
+| extend ModelDeployment = tostring(p.modelDeploymentName)
+| where ModelDeployment != ""
+| summarize Requests = count() by Day=bin(TimeGenerated, 1d), ModelDeployment
+| join kind=inner (
+    AzureDiagnostics
+    | where TimeGenerated {TimeRange}
+    | where ResourceProvider == "MICROSOFT.COGNITIVESERVICES"
+    | where Category == "RequestResponse"
+    | extend p = parse_json(properties_s)
+    | where tostring(p.modelDeploymentName) != ""
+    | summarize TotalRequests = count() by Day=bin(TimeGenerated, 1d)
+) on Day
+| extend Share = todouble(Requests) / todouble(TotalRequests);
+shares
+| join kind=inner tokens on Day
+| extend
+    InputTokens  = InputTokens * Share,
+    OutputTokens = OutputTokens * Share
 | extend EstCostUSD = case(
-    ModelDeployment =~ "phi-4",         (PromptTokens / 1000000.0) * rate_phi4_in + (OutputTokens / 1000000.0) * rate_phi4_out,
-    ModelDeployment =~ "llama-3-3-70b", (PromptTokens / 1000000.0) * rate_llama33_in + (OutputTokens / 1000000.0) * rate_llama33_out,
+    ModelDeployment =~ "phi-4",         (InputTokens / 1000000.0) * rate_phi4_in    + (OutputTokens / 1000000.0) * rate_phi4_out,
+    ModelDeployment =~ "llama-3-3-70b", (InputTokens / 1000000.0) * rate_llama33_in + (OutputTokens / 1000000.0) * rate_llama33_out,
     real(null))
-| order by TimeGenerated asc
+| project Day, ModelDeployment, Requests, InputTokens=toint(InputTokens), OutputTokens=toint(OutputTokens), EstCostUSD
+| order by Day asc, ModelDeployment asc
 """.strip()
 
 Q_USAGE_MODEL_SPLIT = """
-AzureMetrics
+AzureDiagnostics
 | where TimeGenerated {TimeRange}
 | where ResourceProvider == "MICROSOFT.COGNITIVESERVICES"
-| where MetricName in ("AzureOpenAIRequests", "ModelRequests", "TokenTransaction", "TotalTokens")
-| extend dims = todynamic(Tags)
-| extend ModelDeployment = coalesce(
-    tostring(dims["ModelDeploymentName"]),
-    tostring(dims["ModelDeployment"]),
-    tostring(dims["modelDeploymentName"]),
-    Resource)
+| where Category == "RequestResponse"
+| extend p = parse_json(properties_s)
+| extend ModelDeployment = tostring(p.modelDeploymentName)
+| extend ModelName       = tostring(p.modelName)
+| extend ModelVersion    = tostring(p.modelVersion)
+| extend StreamType      = tostring(p.streamType)
+| extend StatusCode      = toint(ResultSignature)
+| where ModelDeployment != ""
 | summarize
-    Requests = sumif(todouble(coalesce(Total, 0.0)), MetricName in ("AzureOpenAIRequests", "ModelRequests")),
-    Tokens   = sumif(todouble(coalesce(Total, 0.0)), MetricName in ("TokenTransaction", "TotalTokens"))
-    by ModelDeployment
+    Requests = count(),
+    AvgDurationMs = avg(todouble(DurationMs)),
+    Errors = countif(StatusCode >= 400),
+    Throttles = countif(StatusCode == 429)
+    by ModelDeployment, ModelName, ModelVersion, StreamType
 | order by Requests desc
 """.strip()
 
@@ -207,38 +224,46 @@ Q_SAFETY_TREND = """
 AzureMetrics
 | where TimeGenerated {TimeRange}
 | where ResourceProvider == "MICROSOFT.COGNITIVESERVICES"
-| where MetricName in ("RAIRejectedRequests", "RAIHarmfulRequests", "RAITotalRequests", "RAIAbusiveUsersCount")
+| where MetricName in ("BlockedCalls", "ClientErrors", "TotalErrors", "SuccessfulCalls")
 | summarize Value=sum(todouble(coalesce(Total, 0.0))) by bin(TimeGenerated, 1h), MetricName
 | order by TimeGenerated asc
 """.strip()
 
 Q_SAFETY_BY_MODEL = """
-AzureMetrics
+// Per-model safety/error counts derived from RequestResponse HTTP status codes
+AzureDiagnostics
 | where TimeGenerated {TimeRange}
 | where ResourceProvider == "MICROSOFT.COGNITIVESERVICES"
-| where MetricName in ("RAIRejectedRequests", "RAIHarmfulRequests", "RAITotalRequests", "RAIAbusiveUsersCount")
-| extend dims = todynamic(Tags)
-| extend ModelDeployment = coalesce(
-    tostring(dims["ModelDeploymentName"]),
-    tostring(dims["ModelDeployment"]),
-    tostring(dims["modelDeploymentName"]),
-    Resource)
-| summarize Value=sum(todouble(coalesce(Total, 0.0))) by ModelDeployment, MetricName
-| order by ModelDeployment asc
+| where Category == "RequestResponse"
+| extend p = parse_json(properties_s)
+| extend ModelDeployment = tostring(p.modelDeploymentName)
+| extend StatusCode      = toint(ResultSignature)
+| where ModelDeployment != ""
+| summarize
+    Success = countif(StatusCode between (200 .. 299)),
+    ContentFilter400 = countif(StatusCode == 400),
+    Auth401_403 = countif(StatusCode in (401, 403)),
+    Throttles429 = countif(StatusCode == 429),
+    Server5xx = countif(StatusCode >= 500),
+    Total = count()
+    by ModelDeployment
+| order by Total desc
 """.strip()
 
 Q_OPS_LATENCY = """
-AzureMetrics
+// Per-model latency from RequestResponse durations (AzureMetrics latency has no model dim here)
+AzureDiagnostics
 | where TimeGenerated {TimeRange}
 | where ResourceProvider == "MICROSOFT.COGNITIVESERVICES"
-| where MetricName in ("AzureOpenAITimeToResponse", "TimeToResponse", "TimeToLastByte", "AzureOpenAITTLTInMS", "AzureOpenAINormalizedTTFTInMS")
-| extend dims = todynamic(Tags)
-| extend ModelDeployment = coalesce(
-    tostring(dims["ModelDeploymentName"]),
-    tostring(dims["ModelDeployment"]),
-    tostring(dims["modelDeploymentName"]),
-    Resource)
-| summarize AvgLatencyMs=avg(todouble(coalesce(Average, Total, 0.0))) by bin(TimeGenerated, 15m), ModelDeployment, MetricName
+| where Category == "RequestResponse"
+| extend p = parse_json(properties_s)
+| extend ModelDeployment = tostring(p.modelDeploymentName)
+| where ModelDeployment != ""
+| summarize
+    AvgMs = avg(todouble(DurationMs)),
+    P50Ms = percentile(todouble(DurationMs), 50),
+    P95Ms = percentile(todouble(DurationMs), 95)
+    by bin(TimeGenerated, 15m), ModelDeployment
 | order by TimeGenerated asc
 """.strip()
 
@@ -247,12 +272,12 @@ AzureDiagnostics
 | where TimeGenerated {TimeRange}
 | where ResourceProvider == "MICROSOFT.COGNITIVESERVICES"
 | where Category == "RequestResponse"
-| extend props = parse_json(properties_s)
-| extend ModelDeployment = coalesce(tostring(props.modelDeploymentName), tostring(AdditionalFields.ModelDeploymentName), Resource)
-| extend StatusCode = toint(coalesce(tostring(props.statusCode), tostring(httpStatusCode_d), tostring(httpStatus_d)))
+| extend p = parse_json(properties_s)
+| extend ModelDeployment = coalesce(tostring(p.modelDeploymentName), Resource)
+| extend StatusCode = toint(ResultSignature)
 | summarize
     Throttles429 = countif(StatusCode == 429),
-    Client4xx = countif(StatusCode between (400 .. 499)),
+    Client4xx = countif(StatusCode between (400 .. 499) and StatusCode != 429),
     Server5xx = countif(StatusCode >= 500)
     by bin(TimeGenerated, 15m), ModelDeployment
 | order by TimeGenerated asc
@@ -263,23 +288,30 @@ AzureDiagnostics
 | where TimeGenerated {TimeRange}
 | where ResourceProvider == "MICROSOFT.COGNITIVESERVICES"
 | where Category == "RequestResponse"
-| extend props = parse_json(properties_s)
-| extend ModelDeployment = coalesce(tostring(props.modelDeploymentName), tostring(AdditionalFields.ModelDeploymentName), Resource)
-| extend ApiName = coalesce(tostring(props.apiName), tostring(AdditionalFields.ApiName), OperationName)
-| extend StatusCode = toint(coalesce(tostring(props.statusCode), tostring(httpStatusCode_d), tostring(httpStatus_d)))
-| extend DurationMsValue = tolong(coalesce(tostring(props.durationMs), tostring(DurationMs), tostring(duration_milliseconds_d)))
-| where StatusCode >= 400 or ResultSignature !in ("Success", "OK")
-| project TimeGenerated, ModelDeployment, ApiName, StatusCode, ResultSignature, DurationMsValue, CallerIPAddress, requestUri_s
+| extend p = parse_json(properties_s)
+| extend ModelDeployment = coalesce(tostring(p.modelDeploymentName), Resource)
+| extend ModelName       = tostring(p.modelName)
+| extend StreamType      = tostring(p.streamType)
+| extend StatusCode      = toint(ResultSignature)
+| where StatusCode >= 400
+| project TimeGenerated, Resource, ModelDeployment, ModelName, StreamType, StatusCode, DurationMs, CorrelationId
 | order by TimeGenerated desc
 | take 250
 """.strip()
 
 Q_TRACE_FEED = """
+// Recent successful calls (sampled) — full Trace category not enabled in this workspace
 AzureDiagnostics
 | where TimeGenerated {TimeRange}
 | where ResourceProvider == "MICROSOFT.COGNITIVESERVICES"
-| where Category == "Trace"
-| project TimeGenerated, OperationName, ResultType, ResultSignature, Message, properties_s
+| where Category == "RequestResponse"
+| extend p = parse_json(properties_s)
+| extend ModelDeployment = tostring(p.modelDeploymentName)
+| extend ModelName       = tostring(p.modelName)
+| extend StreamType      = tostring(p.streamType)
+| extend StatusCode      = toint(ResultSignature)
+| where StatusCode < 400
+| project TimeGenerated, Resource, ModelDeployment, ModelName, StreamType, StatusCode, DurationMs, CorrelationId
 | order by TimeGenerated desc
 | take 100
 """.strip()
@@ -288,18 +320,20 @@ Q_DEFENDER_ALERTS = """
 SecurityAlert
 | where TimeGenerated {TimeRange}
 | where ProductName has_any ("Azure AI", "Defender for AI", "Microsoft Defender for Cloud")
-   or AlertName has_any ("prompt", "LLM", "jailbreak", "foundry", "openai")
+   or AlertName has_any ("prompt", "LLM", "jailbreak", "foundry", "openai", "AI", "model")
 | project TimeGenerated, AlertName, AlertSeverity, ProductName, Description=substring(Description, 0, 400)
 | order by TimeGenerated desc
 | take 100
 """.strip()
 
 Q_AUDIT_FEED = """
-AzureDiagnostics
+// Resource-level admin/control-plane events from Activity Log
+// (AzureDiagnostics 'Audit' category is data-plane and may not be enabled on every account)
+AzureActivity
 | where TimeGenerated {TimeRange}
-| where ResourceProvider == "MICROSOFT.COGNITIVESERVICES"
-| where Category == "Audit"
-| project TimeGenerated, OperationName, ResultType, ResultSignature, CallerIPAddress, identity_claim_appid_g, properties_s
+| where ResourceProviderValue =~ "MICROSOFT.COGNITIVESERVICES"
+| where OperationNameValue has_any ("DEPLOYMENTS", "ACCOUNTS", "WRITE", "DELETE", "ACTION")
+| project TimeGenerated, OperationNameValue, ActivityStatusValue, Caller, ResourceGroup, _ResourceId
 | order by TimeGenerated desc
 | take 100
 """.strip()
@@ -314,16 +348,29 @@ AzureActivity
 """.strip()
 
 Q_INGEST_HEALTH = """
-let d = AzureDiagnostics
+let diag = AzureDiagnostics
 | where TimeGenerated > ago(24h)
 | where ResourceProvider == "MICROSOFT.COGNITIVESERVICES"
-| summarize LastSeen=max(TimeGenerated) by Category;
-let expected = datatable(Category:string) ["Audit", "RequestResponse", "Trace", "AzureOpenAIRequestUsage"];
-expected
-| join kind=leftouter d on Category
-| extend Status = iff(isnull(LastSeen), "Missing in last 24h", "Receiving")
-| project Category, Status, LastSeen
-| order by Category asc
+| summarize Records=count(), LastSeen=max(TimeGenerated) by Source=strcat("AzureDiagnostics:", Category);
+let metrics = AzureMetrics
+| where TimeGenerated > ago(24h)
+| where ResourceProvider == "MICROSOFT.COGNITIVESERVICES"
+| summarize Records=count(), LastSeen=max(TimeGenerated) by Source="AzureMetrics:CognitiveServices";
+let activity = AzureActivity
+| where TimeGenerated > ago(24h)
+| where ResourceProviderValue =~ "MICROSOFT.COGNITIVESERVICES"
+| summarize Records=count(), LastSeen=max(TimeGenerated) by Source="AzureActivity:CognitiveServices";
+let alerts = SecurityAlert
+| where TimeGenerated > ago(24h)
+| where ProductName has_any ("Azure AI", "Defender for AI", "Microsoft Defender for Cloud")
+| summarize Records=count(), LastSeen=max(TimeGenerated) by Source="SecurityAlert:DefenderForAI";
+diag
+| union metrics
+| union activity
+| union alerts
+| extend Status = iff(Records > 0, "Receiving", "Missing in last 24h")
+| project Source, Status, Records, LastSeen
+| order by Source asc
 """.strip()
 
 

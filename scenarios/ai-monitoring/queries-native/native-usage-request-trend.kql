@@ -1,12 +1,9 @@
-AzureMetrics
-| where TimeGenerated {TimeRange}
+AzureDiagnostics
+| where TimeGenerated > ago(24h)
 | where ResourceProvider == "MICROSOFT.COGNITIVESERVICES"
-| where MetricName in ("AzureOpenAIRequests", "ModelRequests")
-| extend dims = todynamic(Tags)
-| extend ModelDeployment = coalesce(
-    tostring(dims["ModelDeploymentName"]),
-    tostring(dims["ModelDeployment"]),
-    tostring(dims["modelDeploymentName"]),
-    Resource)
-| summarize Requests = sum(todouble(coalesce(Total, 0.0))) by bin(TimeGenerated, 15m), ModelDeployment
+| where Category == "RequestResponse"
+| extend p = parse_json(properties_s)
+| extend ModelDeployment = coalesce(tostring(p.modelDeploymentName), tostring(p.modelName), "unknown")
+| where ModelDeployment != "" and ModelDeployment != "unknown"
+| summarize Requests = count() by bin(TimeGenerated, 15m), ModelDeployment
 | order by TimeGenerated asc

@@ -1,13 +1,13 @@
 AzureDiagnostics
-| where TimeGenerated {TimeRange}
+| where TimeGenerated > ago(24h)
 | where ResourceProvider == "MICROSOFT.COGNITIVESERVICES"
 | where Category == "RequestResponse"
-| extend props = parse_json(properties_s)
-| extend ModelDeployment = coalesce(tostring(props.modelDeploymentName), tostring(AdditionalFields.ModelDeploymentName), Resource)
-| extend StatusCode = toint(coalesce(tostring(props.statusCode), tostring(httpStatusCode_d), tostring(httpStatus_d)))
+| extend p = parse_json(properties_s)
+| extend ModelDeployment = coalesce(tostring(p.modelDeploymentName), Resource)
+| extend StatusCode = toint(ResultSignature)
 | summarize
     Throttles429 = countif(StatusCode == 429),
-    Client4xx = countif(StatusCode between (400 .. 499)),
+    Client4xx = countif(StatusCode between (400 .. 499) and StatusCode != 429),
     Server5xx = countif(StatusCode >= 500)
     by bin(TimeGenerated, 15m), ModelDeployment
 | order by TimeGenerated asc

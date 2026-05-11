@@ -1,16 +1,10 @@
 AzureMetrics
-| where TimeGenerated {TimeRange}
+| where TimeGenerated > ago(24h)
 | where ResourceProvider == "MICROSOFT.COGNITIVESERVICES"
-| where MetricName in ("ProcessedPromptTokens", "InputTokens", "GeneratedTokens", "OutputTokens", "TokenTransaction", "TotalTokens")
-| extend dims = todynamic(Tags)
-| extend ModelDeployment = coalesce(
-    tostring(dims["ModelDeploymentName"]),
-    tostring(dims["ModelDeployment"]),
-    tostring(dims["modelDeploymentName"]),
-    Resource)
+| where MetricName in ("InputTokens", "OutputTokens", "TotalTokens")
 | summarize
-    PromptTokens = sumif(todouble(coalesce(Total, 0.0)), MetricName in ("ProcessedPromptTokens", "InputTokens")),
-    OutputTokens = sumif(todouble(coalesce(Total, 0.0)), MetricName in ("GeneratedTokens", "OutputTokens")),
-    TotalTokens  = sumif(todouble(coalesce(Total, 0.0)), MetricName in ("TokenTransaction", "TotalTokens"))
-    by bin(TimeGenerated, 1h), ModelDeployment
+    InputTokens  = sumif(todouble(coalesce(Total, 0.0)), MetricName == "InputTokens"),
+    OutputTokens = sumif(todouble(coalesce(Total, 0.0)), MetricName == "OutputTokens"),
+    TotalTokens  = sumif(todouble(coalesce(Total, 0.0)), MetricName == "TotalTokens")
+    by bin(TimeGenerated, 1h), Resource
 | order by TimeGenerated asc

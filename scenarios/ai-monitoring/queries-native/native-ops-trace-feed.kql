@@ -1,7 +1,14 @@
+// Recent successful calls (sampled) — full Trace category not enabled in this workspace
 AzureDiagnostics
-| where TimeGenerated {TimeRange}
+| where TimeGenerated > ago(24h)
 | where ResourceProvider == "MICROSOFT.COGNITIVESERVICES"
-| where Category == "Trace"
-| project TimeGenerated, OperationName, ResultType, ResultSignature, Message, properties_s
+| where Category == "RequestResponse"
+| extend p = parse_json(properties_s)
+| extend ModelDeployment = tostring(p.modelDeploymentName)
+| extend ModelName       = tostring(p.modelName)
+| extend StreamType      = tostring(p.streamType)
+| extend StatusCode      = toint(ResultSignature)
+| where StatusCode < 400
+| project TimeGenerated, Resource, ModelDeployment, ModelName, StreamType, StatusCode, DurationMs, CorrelationId
 | order by TimeGenerated desc
 | take 100
